@@ -23,6 +23,7 @@ export interface PlayerState {
   level: number;
   experience: number;
   inventory: InventoryItem[];
+  usedWordIds: string[];
 }
 
 export type EncounterType = 'gate' | 'enemy' | 'treasure' | 'boss';
