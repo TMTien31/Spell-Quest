@@ -85,6 +85,7 @@ export function calculateDifficulty(word: string): 'easy' | 'medium' | 'hard' {
 
 /**
  * Web Speech API wrapper for text-to-speech.
+ * Prefers female voices for a more consistent experience.
  */
 export function speak(text: string) {
   if (!window.speechSynthesis) return;
@@ -95,13 +96,23 @@ export function speak(text: string) {
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'en-US';
   utterance.rate = 0.9;
-  utterance.pitch = 1;
+  utterance.pitch = 1.1; // Slightly higher pitch for a more feminine tone
 
-  // Try to find a good English voice
+  // Try to find a good English female voice
   const voices = window.speechSynthesis.getVoices();
-  const enVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || 
-                  voices.find(v => v.lang.startsWith('en'));
-  if (enVoice) utterance.voice = enVoice;
+  const enVoices = voices.filter(v => v.lang.startsWith('en'));
+  
+  // Prioritize common female voice names or labels
+  const femaleVoice = enVoices.find(v => 
+    v.name.toLowerCase().includes('female') || 
+    v.name.toLowerCase().includes('samantha') || 
+    v.name.toLowerCase().includes('victoria') ||
+    v.name.toLowerCase().includes('karen') ||
+    v.name.toLowerCase().includes('moira') ||
+    v.name.toLowerCase().includes('tessa')
+  ) || enVoices.find(v => v.name.includes('Google')) || enVoices[0];
+
+  if (femaleVoice) utterance.voice = femaleVoice;
   
   window.speechSynthesis.speak(utterance);
 }
