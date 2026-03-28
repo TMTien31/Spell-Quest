@@ -5,6 +5,8 @@ export interface Word {
   text: string;
   phonetic?: string;
   hint?: string;
+  vietnameseMeaning?: string;
+  definition?: string;
   difficulty: Difficulty;
 }
 

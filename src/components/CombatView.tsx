@@ -25,6 +25,21 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
   const [dictionaryInfo, setDictionaryInfo] = useState<{ phonetic?: string; meaning?: string; vietnamese?: string; vietnameseMeaning?: string } | null>(null);
 
   const currentWord = encounter.word;
+
+  useEffect(() => {
+    // Initialize dictionary info from word object if available
+    if (currentWord.vietnameseMeaning || currentWord.definition || currentWord.phonetic) {
+      setDictionaryInfo({
+        phonetic: currentWord.phonetic || '',
+        meaning: currentWord.definition || '',
+        vietnamese: currentWord.vietnameseMeaning || '',
+        vietnameseMeaning: '' // We'll use definition as meaning
+      });
+    } else {
+      // Fallback to fetching if no info is provided
+      fetchDictionaryInfo(currentWord.text);
+    }
+  }, [currentWord]);
   
   const syllables = useMemo(() => {
     const word = currentWord.text.toLowerCase();
@@ -170,7 +185,11 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
       setEnemyHp(prev => Math.max(0, prev - damage));
       setMessage({ text: 'CRITICAL HIT!', type: 'success' });
       speak(targetWord);
-      fetchDictionaryInfo(targetWord);
+      
+      // Only fetch if we don't already have info
+      if (!dictionaryInfo?.meaning) {
+        fetchDictionaryInfo(targetWord);
+      }
       
       // Removed auto-complete timeout to wait for user to click "Next"
     } else {
@@ -326,7 +345,31 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
             </button>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-8">
+          {/* Word Info During Input */}
+          <AnimatePresence>
+            {dictionaryInfo && !isCorrect && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-3 text-center max-w-2xl mx-auto"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em]">Meaning & Context</span>
+                  <p className="text-xl font-bold text-white leading-tight">{dictionaryInfo.vietnamese}</p>
+                  {dictionaryInfo.phonetic && (
+                    <span className="text-sm font-mono text-gray-400">{dictionaryInfo.phonetic}</span>
+                  )}
+                </div>
+                {dictionaryInfo.meaning && (
+                  <p className="text-xs text-gray-400 leading-relaxed italic max-w-md mx-auto">
+                    "{dictionaryInfo.meaning}"
+                  </p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex flex-wrap justify-center gap-4">
             {syllables.map((syllable, sIdx) => {
               const prevCharsCount = syllables.slice(0, sIdx).join('').length;
               
