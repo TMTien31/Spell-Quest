@@ -27,29 +27,18 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
   const currentWord = encounter.word;
 
   useEffect(() => {
-    // const loadInfo = async () => {
-    //   // Initialize dictionary info from word object if available
-    //   if (currentWord.vietnameseMeaning || currentWord.definition || currentWord.phonetic) {
-    //     setDictionaryInfo({
-    //       phonetic: currentWord.phonetic || '',
-    //       meaning: currentWord.definition || '',
-    //       vietnamese: currentWord.vietnameseMeaning || '',
-    //       vietnameseMeaning: currentWord.detailedVietnameseMeaning || ''
-    //     });
-    //   } else {
-    //     // Fallback to fetching if no info is provided
-    //     const info = await fetchWordInfo(currentWord.text);
-    //     if (info) {
-    //       setDictionaryInfo({
-    //         phonetic: info.phonetic,
-    //         meaning: info.definition,
-    //         vietnamese: info.vietnameseMeaning,
-    //         vietnameseMeaning: info.detailedVietnameseMeaning
-    //       });
-    //     }
-    //   }
-    // };
-    // loadInfo();
+    // Initialize dictionary info from word object if available
+    if (currentWord.vietnameseMeaning || currentWord.definition || currentWord.phonetic) {
+      setDictionaryInfo({
+        phonetic: currentWord.phonetic || '',
+        meaning: currentWord.definition || '',
+        vietnamese: currentWord.vietnameseMeaning || '',
+        vietnameseMeaning: '' // We'll use definition as meaning
+      });
+    } else {
+      // Fallback to fetching if no info is provided
+      fetchDictionaryInfo(currentWord.text);
+    }
   }, [currentWord]);
   
   const syllables = useMemo(() => {
@@ -140,7 +129,51 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
     }
   };
 
-  const handleSubmit = async () => {
+  const fetchDictionaryInfo = async (word: string) => {
+    try {
+      // Fetch English definition and phonetics
+      const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+      const dictData = await dictRes.json();
+      
+      // Fetch Vietnamese translation for the word
+      const transRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(word)}`);
+      const transData = await transRes.json();
+      const viTranslation = transData?.[0]?.[0]?.[0] || '';
+
+      let meaning = '';
+      let viMeaning = '';
+
+      if (Array.isArray(dictData) && dictData.length > 0) {
+        const entry = dictData[0];
+        meaning = entry.meanings?.[0]?.definitions?.[0]?.definition || '';
+        
+        // Fetch Vietnamese translation for the definition
+        if (meaning) {
+          const transMeaningRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(meaning)}`);
+          const transMeaningData = await transMeaningRes.json();
+          viMeaning = transMeaningData?.[0]?.[0]?.[0] || '';
+        }
+
+        setDictionaryInfo({
+          phonetic: entry.phonetic || entry.phonetics?.find((p: any) => p.text)?.text || '',
+          meaning,
+          vietnamese: viTranslation,
+          vietnameseMeaning: viMeaning
+        });
+      } else {
+        setDictionaryInfo({
+          phonetic: '',
+          meaning: 'Definition not found.',
+          vietnamese: viTranslation,
+          vietnameseMeaning: ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching dictionary:', error);
+    }
+  };
+
+  const handleSubmit = () => {
     const typedWord = userInput.join('').toLowerCase();
     const targetWord = currentWord.text.toLowerCase();
     
@@ -154,17 +187,9 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
       speak(targetWord);
       
       // Only fetch if we don't already have info
-      // if (!dictionaryInfo?.meaning) {
-      //   const info = await fetchWordInfo(targetWord);
-      //   if (info) {
-      //     setDictionaryInfo({
-      //       phonetic: info.phonetic,
-      //       meaning: info.definition,
-      //       vietnamese: info.vietnameseMeaning,
-      //       vietnameseMeaning: info.detailedVietnameseMeaning
-      //     });
-      //   }
-      // }
+      if (!dictionaryInfo?.meaning) {
+        fetchDictionaryInfo(targetWord);
+      }
       
       // Removed auto-complete timeout to wait for user to click "Next"
     } else {
@@ -326,37 +351,30 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4 text-center max-w-2xl mx-auto"
+                className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-3 text-center max-w-2xl mx-auto"
               >
                 <div className="flex flex-col items-center gap-2">
-                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em]">Word Clues</span>
-                  <div className="flex flex-col items-center gap-1">
-                    <p className="text-2xl font-bold text-white leading-tight">{dictionaryInfo.vietnamese}</p>
-                    {dictionaryInfo.vietnameseMeaning && (
-                      <p className="text-sm text-gray-400 font-medium">{dictionaryInfo.vietnameseMeaning}</p>
-                    )}
-                  </div>
+                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em]">Meaning & Context</span>
+                  <p className="text-xl font-bold text-white leading-tight">{dictionaryInfo.vietnamese}</p>
                   {dictionaryInfo.phonetic && (
-                    <span className="text-sm font-mono text-gray-500 bg-white/5 px-3 py-1 rounded-full">{dictionaryInfo.phonetic}</span>
+                    <span className="text-sm font-mono text-gray-400">{dictionaryInfo.phonetic}</span>
                   )}
                 </div>
                 {dictionaryInfo.meaning && (
-                  <div className="pt-2 border-t border-white/5">
-                    <p className="text-[11px] text-gray-500 leading-relaxed italic max-w-md mx-auto">
-                      "{dictionaryInfo.meaning}"
-                    </p>
-                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed italic max-w-md mx-auto">
+                    "{dictionaryInfo.meaning}"
+                  </p>
                 )}
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div className="flex flex-wrap justify-center gap-2">
+          <div className="flex flex-wrap justify-center gap-4">
             {syllables.map((syllable, sIdx) => {
               const prevCharsCount = syllables.slice(0, sIdx).join('').length;
               
               return (
-                <div key={sIdx} className="flex gap-1 p-2 bg-white/5 rounded-2xl border border-white/5 shadow-inner">
+                <div key={sIdx} className="flex gap-2 p-4 bg-white/5 rounded-3xl border border-white/5 shadow-inner">
                   {syllable.split('').map((char, cIdx) => {
                     const idx = prevCharsCount + cIdx;
                     const isRevealed = revealedIndices.includes(idx);
