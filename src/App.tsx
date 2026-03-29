@@ -58,21 +58,37 @@ const INITIAL_PLAYER: PlayerState = {
 
 export default function App() {
   // --- Helpers ---
-  const generateLevels = (currentWords: Word[]) => {
+  const generateLevels = (currentWords: Word[], usedWordsList: string[]) => {
+    console.log('Generating levels with used words:', usedWordsList);
     // Filter out initial words if the library has custom words
     const customWords = currentWords.filter(w => !INITIAL_WORDS.some(iw => iw.id === w.id));
     const pool = customWords.length > 0 ? customWords : currentWords;
 
     // Filter out used words
-    const availablePool = pool.filter(w => !usedWords.includes(w.text.toLowerCase()));
+    const availablePool = pool.filter(w => !usedWordsList.includes(w.text.toLowerCase()));
+    console.log(`Available words: ${availablePool.length}/${pool.length}`);
     
     // If we run out of words, we might need to reuse or alert, but for now let's fallback to pool
     const finalPool = availablePool.length > 0 ? availablePool : pool;
 
+    let currentFinalPool = [...finalPool];
+
     const getRandomWord = (difficulty?: 'easy' | 'medium' | 'hard') => {
-      const filtered = difficulty ? finalPool.filter((w: any) => w.difficulty === difficulty) : finalPool;
-      const source = filtered.length > 0 ? filtered : finalPool;
-      return source[Math.floor(Math.random() * source.length)];
+      const filtered = difficulty ? currentFinalPool.filter((w: any) => w.difficulty === difficulty) : currentFinalPool;
+      const source = filtered.length > 0 ? filtered : currentFinalPool;
+      
+      if (source.length === 0) {
+        // Fallback to pool if we somehow run out completely
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
+
+      const randomIndex = Math.floor(Math.random() * source.length);
+      const selectedWord = source[randomIndex];
+      
+      // Remove the selected word from the pool to avoid duplicates in the same generation
+      currentFinalPool = currentFinalPool.filter(w => w.id !== selectedWord.id);
+      
+      return selectedWord;
     };
 
     return [
@@ -119,6 +135,28 @@ export default function App() {
           enemyMaxHp: 500,
           completed: false
         }
+      },
+      {
+        id: 3,
+        name: 'Dragon Peak',
+        theme: 'castle' as const,
+        completed: false,
+        encounters: Array.from({ length: 9 }, (_, i) => ({
+          id: `l3-e${i}`,
+          type: i % 3 === 0 ? 'gate' as const : i % 3 === 1 ? 'enemy' as const : 'treasure' as const,
+          word: getRandomWord('hard'),
+          enemyHp: 200,
+          enemyMaxHp: 200,
+          completed: false
+        })),
+        boss: {
+          id: 'l3-boss',
+          type: 'boss' as const,
+          word: getRandomWord('hard'),
+          enemyHp: 800,
+          enemyMaxHp: 800,
+          completed: false
+        }
       }
     ];
   };
@@ -135,13 +173,20 @@ export default function App() {
   });
   const [newWordText, setNewWordText] = useState('');
 
+  const [usedWords, setUsedWords] = useState<string[]>(() => {
+    const saved = localStorage.getItem('spellbound_used_words');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [levels, setLevels] = useState<Level[]>(() => {
     const saved = localStorage.getItem('spellbound_levels');
     if (saved) return JSON.parse(saved);
     
     const savedWords = localStorage.getItem('spellbound_words');
     const currentWords = savedWords ? JSON.parse(savedWords) : INITIAL_WORDS;
-    return generateLevels(currentWords);
+    const savedUsedWords = localStorage.getItem('spellbound_used_words');
+    const initialUsedWords = savedUsedWords ? JSON.parse(savedUsedWords) : [];
+    return generateLevels(currentWords, initialUsedWords);
   });
 
   const [currentLevelIndex, setCurrentLevelIndex] = useState(() => {
@@ -153,11 +198,6 @@ export default function App() {
     return saved ? parseInt(saved, 10) : 0;
   });
   const [activeEncounter, setActiveEncounter] = useState<Encounter | null>(null);
-
-  const [usedWords, setUsedWords] = useState<string[]>(() => {
-    const saved = localStorage.getItem('spellbound_used_words');
-    return saved ? JSON.parse(saved) : [];
-  });
 
   // --- Persistence ---
   useEffect(() => {
@@ -276,10 +316,23 @@ export default function App() {
         
         // Add word to used words
         if (activeEncounter.word) {
-          setUsedWords(prev => [...new Set([...prev, activeEncounter.word.text.toLowerCase()])]);
+          setUsedWords(prev => {
+            const newUsedWords = [...new Set([...prev, activeEncounter.word.text.toLowerCase()])];
+            console.log('Used words updated:', newUsedWords);
+            return newUsedWords;
+          });
         }
         
-        setScreen('map'); // Removed spin from boss completion
+        // If level was completed, move to next level
+        if (currentLevelIndex < levels.length - 1) {
+          setCurrentLevelIndex(prev => prev + 1);
+          setCurrentEncounterIndex(0);
+          setScreen('map');
+        } else {
+          // Game completed!
+          alert('Congratulations! You have defeated all the bosses and completed the game!');
+          setScreen('map');
+        }
       } else {
         const encounterIdx = level.encounters.findIndex(e => e.id === activeEncounter?.id);
         if (encounterIdx !== -1) {
@@ -288,7 +341,11 @@ export default function App() {
           
           // Add word to used words
           if (activeEncounter?.word) {
-            setUsedWords(prev => [...new Set([...prev, activeEncounter.word.text.toLowerCase()])]);
+            setUsedWords(prev => {
+              const newUsedWords = [...new Set([...prev, activeEncounter.word.text.toLowerCase()])];
+              console.log('Used words updated:', newUsedWords);
+              return newUsedWords;
+            });
           }
         }
         
@@ -337,14 +394,6 @@ export default function App() {
       }
     });
 
-    // If level was completed, move to next level
-    if (levels[currentLevelIndex]?.completed) {
-      if (currentLevelIndex < levels.length - 1) {
-        setCurrentLevelIndex(prev => prev + 1);
-        setCurrentEncounterIndex(0);
-      }
-    }
-    
     setScreen('map');
   };
 
@@ -375,7 +424,7 @@ export default function App() {
   const handleResetMap = () => {
     setCurrentEncounterIndex(0);
     const currentWords = words.length > 0 ? words : INITIAL_WORDS;
-    const newLevels = generateLevels(currentWords);
+    const newLevels = generateLevels(currentWords, usedWords);
     
     // Completely reset the current level's progress and regenerate its words
     const updatedLevels = levels.map((l, i) => {
@@ -408,7 +457,7 @@ export default function App() {
     localStorage.setItem('spellbound_used_words', JSON.stringify([]));
     
     const currentWords = words.length > 0 ? words : INITIAL_WORDS;
-    const newLevels = generateLevels(currentWords);
+    const newLevels = generateLevels(currentWords, []);
     setLevels(newLevels);
     localStorage.setItem('spellbound_levels', JSON.stringify(newLevels));
     setScreen('map');
