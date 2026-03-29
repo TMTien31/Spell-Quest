@@ -9,8 +9,7 @@ interface AdventureMapProps {
   currentLevelIndex: number;
   currentEncounterIndex: number;
   onSelectEncounter: (encounter: Encounter) => void;
-  onResetMap: () => void;
-  onResetAll: () => void;
+  onResetRequest: (type: 'map' | 'all') => void;
 }
 
 export default function AdventureMap({ 
@@ -18,8 +17,7 @@ export default function AdventureMap({
   currentLevelIndex, 
   currentEncounterIndex,
   onSelectEncounter,
-  onResetMap,
-  onResetAll
+  onResetRequest
 }: AdventureMapProps) {
   const currentLevel = levels[currentLevelIndex] || levels[0];
 
@@ -27,7 +25,7 @@ export default function AdventureMap({
     return (
       <div className="text-center py-20">
         <h2 className="text-2xl font-black text-white">No map data found.</h2>
-        <button onClick={onResetAll} className="mt-4 bg-white text-black px-6 py-2 rounded-xl font-bold">
+        <button onClick={() => onResetRequest('all')} className="mt-4 bg-white text-black px-6 py-2 rounded-xl font-bold">
           RESET JOURNEY
         </button>
       </div>
@@ -147,18 +145,14 @@ export default function AdventureMap({
       {/* Reset Controls */}
       <div className="flex justify-center gap-4 mt-8">
         <button
-          onClick={() => {
-            if (confirm('Reset progress of CURRENT map?')) onResetMap();
-          }}
+          onClick={() => onResetRequest('map')}
           className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold border border-white/5 transition-all"
         >
           <RotateCcw className="w-4 h-4" />
           RESET MAP
         </button>
         <button
-          onClick={() => {
-            if (confirm('Reset ALL journey progress?')) onResetAll();
-          }}
+          onClick={() => onResetRequest('all')}
           className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold border border-red-500/10 transition-all"
         >
           <Skull className="w-4 h-4" />

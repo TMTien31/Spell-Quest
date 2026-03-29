@@ -179,14 +179,29 @@ export default function App() {
   });
 
   const [levels, setLevels] = useState<Level[]>(() => {
-    const saved = localStorage.getItem('spellbound_levels');
-    if (saved) return JSON.parse(saved);
-    
     const savedWords = localStorage.getItem('spellbound_words');
     const currentWords = savedWords ? JSON.parse(savedWords) : INITIAL_WORDS;
     const savedUsedWords = localStorage.getItem('spellbound_used_words');
     const initialUsedWords = savedUsedWords ? JSON.parse(savedUsedWords) : [];
-    return generateLevels(currentWords, initialUsedWords);
+    
+    const generatedLevels = generateLevels(currentWords, initialUsedWords);
+    const saved = localStorage.getItem('spellbound_levels');
+    
+    if (saved) {
+      const parsedSaved = JSON.parse(saved);
+      // If the saved levels don't match the generated length (e.g., added a new map), merge them
+      if (parsedSaved.length !== generatedLevels.length) {
+        return generatedLevels.map((genLevel, i) => {
+          if (parsedSaved[i]) {
+            return parsedSaved[i]; // Keep progress for existing levels
+          }
+          return genLevel; // Add new levels
+        });
+      }
+      return parsedSaved;
+    }
+    
+    return generatedLevels;
   });
 
   const [currentLevelIndex, setCurrentLevelIndex] = useState(() => {
@@ -198,6 +213,11 @@ export default function App() {
     return saved ? parseInt(saved, 10) : 0;
   });
   const [activeEncounter, setActiveEncounter] = useState<Encounter | null>(null);
+
+  const [showResetConfirm, setShowResetConfirm] = useState<'all' | 'map' | 'words' | null>(null);
+  const [showCongrats, setShowCongrats] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importText, setImportText] = useState('');
 
   // --- Persistence ---
   useEffect(() => {
@@ -244,52 +264,34 @@ export default function App() {
     localStorage.setItem('spellbound_words', JSON.stringify(updatedWords));
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImportText = () => {
+    if (!importText.trim()) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string;
-        let newWords: Word[] = [];
-
-        if (file.name.endsWith('.json')) {
-          const data = JSON.parse(content);
-          if (Array.isArray(data)) {
-            newWords = data.map((item: any, idx: number) => ({
-              id: `imported-${Date.now()}-${idx}`,
-              text: typeof item === 'string' ? item : item.text,
-              difficulty: item.difficulty || calculateDifficulty(typeof item === 'string' ? item : item.text)
-            }));
-          }
-        } else if (file.name.endsWith('.csv')) {
-          const lines = content.split('\n');
-          newWords = lines
-            .map(line => line.trim())
-            .filter(line => line.length > 0)
-            .map((line, idx) => {
-              const [text, diff] = line.split(',').map(s => s.trim());
-              return {
-                id: `imported-${Date.now()}-${idx}`,
-                text,
-                difficulty: (diff as any) || calculateDifficulty(text)
-              };
-            });
-        }
-
-        if (newWords.length > 0) {
-          const updatedWords = [...words, ...newWords];
-          setWords(updatedWords);
-          localStorage.setItem('spellbound_words', JSON.stringify(updatedWords));
-          alert(`Successfully imported ${newWords.length} words!`);
-        }
-      } catch (err) {
-        console.error('Import failed:', err);
-        alert('Failed to import words. Please check the file format.');
+    try {
+      const wordsList = importText.split(',').map(w => w.trim()).filter(w => w.length > 0);
+      
+      if (wordsList.length === 0) {
+        alert('No valid words found. Please enter a comma-separated list of words.');
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      const newWords: Word[] = wordsList.map((text, idx) => ({
+        id: `imported-${Date.now()}-${idx}`,
+        text,
+        difficulty: calculateDifficulty(text)
+      }));
+
+      const updatedWords = [...words, ...newWords];
+      setWords(updatedWords);
+      localStorage.setItem('spellbound_words', JSON.stringify(updatedWords));
+      
+      setImportText('');
+      setShowImportModal(false);
+      alert(`Successfully imported ${newWords.length} words!`);
+    } catch (err) {
+      console.error('Import failed:', err);
+      alert('Failed to import words. Please check the format.');
+    }
   };
 
   const handleEncounterSelect = (encounter: Encounter) => {
@@ -330,7 +332,11 @@ export default function App() {
           setScreen('map');
         } else {
           // Game completed!
-          alert('Congratulations! You have defeated all the bosses and completed the game!');
+          setPlayer(prev => ({
+            ...prev,
+            coins: prev.coins + 100
+          }));
+          setShowCongrats(true);
           setScreen('map');
         }
       } else {
@@ -358,6 +364,7 @@ export default function App() {
 
         setScreen('map'); // Removed spin from streak milestone
       }
+      setLevels(newLevels);
     } else {
       // Player failed
       const newHp = Math.max(0, player.hp - stats.damageTaken);
@@ -531,8 +538,7 @@ export default function App() {
                 currentLevelIndex={currentLevelIndex}
                 currentEncounterIndex={currentEncounterIndex}
                 onSelectEncounter={handleEncounterSelect}
-                onResetMap={handleResetMap}
-                onResetAll={handleResetAll}
+                onResetRequest={setShowResetConfirm}
               />
             </motion.div>
           )}
@@ -628,20 +634,15 @@ export default function App() {
                       <Plus className="w-4 h-4" />
                     </button>
                   </div>
-                  <label className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer border border-white/10 transition-all">
+                  <button 
+                    onClick={() => setShowImportModal(true)}
+                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer border border-white/10 transition-all"
+                  >
                     <Upload className="w-4 h-4" />
                     Import
-                    <input type="file" className="hidden" accept=".csv,.json" onChange={handleImport} />
-                  </label>
+                  </button>
                   <button 
-                    onClick={() => {
-                      if (confirm('Are you sure you want to clear all words and reset your progress?')) {
-                        setWords(INITIAL_WORDS);
-                        localStorage.setItem('spellbound_words', JSON.stringify(INITIAL_WORDS));
-                        localStorage.removeItem('spellbound_levels');
-                        window.location.reload(); // Reload to regenerate levels with new words
-                      }
-                    }}
+                    onClick={() => setShowResetConfirm('words')}
                     className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 px-4 py-2 rounded-xl text-xs font-bold border border-red-500/20 transition-all"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -737,6 +738,155 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Reset Confirmation Modal */}
+        <AnimatePresence>
+          {showResetConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-[#16161D] border border-white/10 p-8 rounded-[32px] max-w-md w-full text-center space-y-6"
+              >
+                <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
+                  <RotateCcw className="w-8 h-8 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-white mb-2">Are you sure?</h3>
+                  <p className="text-gray-400">
+                    {showResetConfirm === 'all' 
+                      ? "This will completely reset your entire journey, including all items, coins, and progress. This action cannot be undone."
+                      : showResetConfirm === 'words'
+                      ? "Are you sure you want to clear all imported words and reset your progress? This action cannot be undone."
+                      : "This will reset your progress on the current map. You will keep your items and coins, but map progress will be lost."}
+                  </p>
+                </div>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowResetConfirm(null)}
+                    className="flex-1 py-3 rounded-xl font-bold bg-white/5 hover:bg-white/10 text-white transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (showResetConfirm === 'all') {
+                        handleResetAll();
+                      } else if (showResetConfirm === 'words') {
+                        setWords(INITIAL_WORDS);
+                        localStorage.setItem('spellbound_words', JSON.stringify(INITIAL_WORDS));
+                        localStorage.removeItem('spellbound_levels');
+                        window.location.reload(); // Reload to regenerate levels with new words
+                      } else {
+                        handleResetMap();
+                      }
+                      setShowResetConfirm(null);
+                    }}
+                    className="flex-1 py-3 rounded-xl font-bold bg-red-500 hover:bg-red-600 text-white transition-colors"
+                  >
+                    CONFIRM RESET
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* Congratulations Modal */}
+          {showCongrats && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-[#16161D] border border-yellow-500/30 p-8 rounded-[32px] max-w-md w-full text-center space-y-6 relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-b from-yellow-500/10 to-transparent pointer-events-none" />
+                <div className="relative">
+                  <div className="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Trophy className="w-10 h-10 text-yellow-500" />
+                  </div>
+                  <h3 className="text-3xl font-black text-white mb-2 uppercase tracking-wider">Victory!</h3>
+                  <p className="text-gray-300 mb-6">
+                    Congratulations! You have defeated all the bosses and completed the game!
+                  </p>
+                  <div className="bg-white/5 rounded-2xl p-4 mb-8">
+                    <div className="text-sm text-gray-400 uppercase tracking-wider font-bold mb-1">Reward</div>
+                    <div className="flex items-center justify-center gap-2 text-yellow-400 font-black text-2xl">
+                      <Coins className="w-6 h-6" />
+                      +100 Coins
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowCongrats(false);
+                    }}
+                    className="w-full py-4 rounded-xl font-black bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black uppercase tracking-widest transition-all"
+                  >
+                    Continue Journey
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+          {/* Import Modal */}
+          {showImportModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-[#16161D] border border-white/10 p-8 rounded-[32px] max-w-2xl w-full space-y-6"
+              >
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-black text-white">Import Words</h3>
+                  <button onClick={() => setShowImportModal(false)} className="text-gray-400 hover:text-white">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                <p className="text-gray-400 text-sm">
+                  Paste a list of words separated by commas (e.g., apple, banana, cherry).
+                </p>
+                <textarea
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  placeholder="Enter words here..."
+                  className="w-full h-48 bg-white/5 border border-white/10 rounded-xl p-4 text-white outline-none focus:border-blue-500/50 resize-none"
+                />
+                <div className="flex justify-end gap-4">
+                  <button
+                    onClick={() => setShowImportModal(false)}
+                    className="px-6 py-3 rounded-xl font-bold bg-white/5 hover:bg-white/10 text-white transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    onClick={handleImportText}
+                    className="px-6 py-3 rounded-xl font-bold bg-blue-500 hover:bg-blue-600 text-white transition-colors flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    IMPORT WORDS
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
