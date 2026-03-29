@@ -58,19 +58,16 @@ const INITIAL_PLAYER: PlayerState = {
 
 export default function App() {
   // --- Helpers ---
-  const generateLevels = (currentWords: Word[], usedWordIds: string[]) => {
+  const generateLevels = (currentWords: Word[]) => {
     // Filter out initial words if the library has custom words
     const customWords = currentWords.filter(w => !INITIAL_WORDS.some(iw => iw.id === w.id));
-    let pool = customWords.length > 0 ? customWords : currentWords;
+    const pool = customWords.length > 0 ? customWords : currentWords;
 
     // Filter out used words
-    const availablePool = pool.filter(w => !usedWordIds.includes(w.id));
+    const availablePool = pool.filter(w => !usedWords.includes(w.text.toLowerCase()));
     
-    // If pool is exhausted, reuse used words (fallback)
+    // If we run out of words, we might need to reuse or alert, but for now let's fallback to pool
     const finalPool = availablePool.length > 0 ? availablePool : pool;
-
-    console.log(`[Word Tracking] Pool size: ${finalPool.length} (Available: ${availablePool.length}, Total: ${pool.length})`);
-    console.log(`[Word Tracking] Used IDs:`, usedWordIds);
 
     const getRandomWord = (difficulty?: 'easy' | 'medium' | 'hard') => {
       const filtered = difficulty ? finalPool.filter((w: any) => w.difficulty === difficulty) : finalPool;
@@ -144,9 +141,7 @@ export default function App() {
     
     const savedWords = localStorage.getItem('spellbound_words');
     const currentWords = savedWords ? JSON.parse(savedWords) : INITIAL_WORDS;
-    const savedPlayer = localStorage.getItem('spellbound_player');
-    const usedIds = savedPlayer ? JSON.parse(savedPlayer).usedWordIds || [] : [];
-    return generateLevels(currentWords, usedIds);
+    return generateLevels(currentWords);
   });
 
   const [currentLevelIndex, setCurrentLevelIndex] = useState(() => {
@@ -159,13 +154,23 @@ export default function App() {
   });
   const [activeEncounter, setActiveEncounter] = useState<Encounter | null>(null);
 
+  const [usedWords, setUsedWords] = useState<string[]>(() => {
+    const saved = localStorage.getItem('spellbound_used_words');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   // --- Persistence ---
   useEffect(() => {
     localStorage.setItem('spellbound_player', JSON.stringify(player));
     localStorage.setItem('spellbound_levels', JSON.stringify(levels));
     localStorage.setItem('spellbound_current_level', currentLevelIndex.toString());
     localStorage.setItem('spellbound_current_encounter', currentEncounterIndex.toString());
-  }, [player, levels, currentLevelIndex, currentEncounterIndex]);
+    localStorage.setItem('spellbound_used_words', JSON.stringify(usedWords));
+    
+    console.log('--- Word Tracking ---');
+    console.log('Used words count:', usedWords.length);
+    console.log('Used words list:', usedWords);
+  }, [player, levels, currentLevelIndex, currentEncounterIndex, usedWords]);
 
   useEffect(() => {
     if (levels.length > 0 && currentLevelIndex >= levels.length) {
@@ -269,11 +274,10 @@ export default function App() {
         level.boss.completed = true;
         level.completed = true;
         
-        // Track word
-        setPlayer(prev => ({
-          ...prev,
-          usedWordIds: [...new Set([...prev.usedWordIds, activeEncounter.word.id])]
-        }));
+        // Add word to used words
+        if (activeEncounter.word) {
+          setUsedWords(prev => [...new Set([...prev, activeEncounter.word.text.toLowerCase()])]);
+        }
         
         setScreen('map'); // Removed spin from boss completion
       } else {
@@ -281,14 +285,18 @@ export default function App() {
         if (encounterIdx !== -1) {
           level.encounters[encounterIdx].completed = true;
           setCurrentEncounterIndex(prev => prev + 1);
+          
+          // Add word to used words
+          if (activeEncounter?.word) {
+            setUsedWords(prev => [...new Set([...prev, activeEncounter.word.text.toLowerCase()])]);
+          }
         }
         
-        // Reward player and track word
+        // Reward player
         setPlayer(prev => ({
           ...prev,
           coins: prev.coins + 20,
-          score: prev.score + 100,
-          usedWordIds: activeEncounter ? [...new Set([...prev.usedWordIds, activeEncounter.word.id])] : prev.usedWordIds
+          score: prev.score + 100
         }));
 
         setScreen('map'); // Removed spin from streak milestone
@@ -367,7 +375,7 @@ export default function App() {
   const handleResetMap = () => {
     setCurrentEncounterIndex(0);
     const currentWords = words.length > 0 ? words : INITIAL_WORDS;
-    const newLevels = generateLevels(currentWords, player.usedWordIds);
+    const newLevels = generateLevels(currentWords);
     
     // Completely reset the current level's progress and regenerate its words
     const updatedLevels = levels.map((l, i) => {
@@ -391,17 +399,18 @@ export default function App() {
   const handleResetAll = () => {
     setCurrentLevelIndex(0);
     setCurrentEncounterIndex(0);
-    const newPlayer = { ...INITIAL_PLAYER, hp: 100, score: 0, coins: 0, usedWordIds: [] };
+    const newPlayer = { ...INITIAL_PLAYER, hp: 100, score: 0, coins: 0 };
     setPlayer(newPlayer);
+    setUsedWords([]);
     localStorage.setItem('spellbound_player', JSON.stringify(newPlayer));
     localStorage.setItem('spellbound_current_level', '0');
     localStorage.setItem('spellbound_current_encounter', '0');
+    localStorage.setItem('spellbound_used_words', JSON.stringify([]));
     
     const currentWords = words.length > 0 ? words : INITIAL_WORDS;
-    const newLevels = generateLevels(currentWords, []);
+    const newLevels = generateLevels(currentWords);
     setLevels(newLevels);
     localStorage.setItem('spellbound_levels', JSON.stringify(newLevels));
-    console.log('[Word Tracking] Resetting all progress. Used words list cleared.');
     setScreen('map');
   };
 

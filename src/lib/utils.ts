@@ -83,9 +83,29 @@ export function calculateDifficulty(word: string): 'easy' | 'medium' | 'hard' {
   return 'hard';
 }
 
+let cachedVoice: SpeechSynthesisVoice | null = null;
+
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  // Pre-load voices
+  const loadVoices = () => {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      cachedVoice = voices.find(v => 
+        v.lang.startsWith('en') && 
+        (v.name.toLowerCase().includes('female') || 
+         v.name.toLowerCase().includes('samantha') || 
+         v.name.toLowerCase().includes('zira') ||
+         v.name.toLowerCase().includes('victoria'))
+      ) || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || voices.find(v => v.lang.startsWith('en')) || null;
+    }
+  };
+  
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+  loadVoices();
+}
+
 /**
  * Web Speech API wrapper for text-to-speech.
- * Prefers female voices for a more consistent experience.
  */
 export function speak(text: string) {
   if (!window.speechSynthesis) return;
@@ -96,23 +116,27 @@ export function speak(text: string) {
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'en-US';
   utterance.rate = 0.9;
-  utterance.pitch = 1.1; // Slightly higher pitch for a more feminine tone
+  utterance.pitch = 1.1; // Slightly higher pitch for a more feminine sound
 
-  // Try to find a good English female voice
-  const voices = window.speechSynthesis.getVoices();
-  const enVoices = voices.filter(v => v.lang.startsWith('en'));
-  
-  // Prioritize common female voice names or labels
-  const femaleVoice = enVoices.find(v => 
-    v.name.toLowerCase().includes('female') || 
-    v.name.toLowerCase().includes('samantha') || 
-    v.name.toLowerCase().includes('victoria') ||
-    v.name.toLowerCase().includes('karen') ||
-    v.name.toLowerCase().includes('moira') ||
-    v.name.toLowerCase().includes('tessa')
-  ) || enVoices.find(v => v.name.includes('Google')) || enVoices[0];
-
-  if (femaleVoice) utterance.voice = femaleVoice;
+  if (cachedVoice) {
+    utterance.voice = cachedVoice;
+  } else {
+    // Fallback if voices weren't loaded yet
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      const fallbackVoice = voices.find(v => 
+        v.lang.startsWith('en') && 
+        (v.name.toLowerCase().includes('female') || 
+         v.name.toLowerCase().includes('samantha') || 
+         v.name.toLowerCase().includes('zira') ||
+         v.name.toLowerCase().includes('victoria'))
+      ) || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) || voices.find(v => v.lang.startsWith('en'));
+      
+      if (fallbackVoice) {
+        utterance.voice = fallbackVoice;
+      }
+    }
+  }
   
   window.speechSynthesis.speak(utterance);
 }
@@ -130,6 +154,39 @@ export function getWeightedRandom<T extends { weight: number }>(items: T[]): T {
   }
   
   return items[0];
+}
+
+export async function fetchWordInfo(word: string) {
+  try {
+    const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const entry = data[0];
+    
+    let phonetic = entry.phonetic;
+    if (!phonetic && entry.phonetics) {
+      const p = entry.phonetics.find((p: any) => p.text);
+      if (p) phonetic = p.text;
+    }
+
+    let definition = '';
+    if (entry.meanings && entry.meanings.length > 0) {
+      const meaning = entry.meanings[0];
+      if (meaning.definitions && meaning.definitions.length > 0) {
+        definition = meaning.definitions[0].definition;
+      }
+    }
+
+    return {
+      phonetic,
+      definition,
+      vietnameseMeaning: '',
+      detailedVietnameseMeaning: ''
+    };
+  } catch (error) {
+    console.error('Error fetching word info:', error);
+    return null;
+  }
 }
 
 export const REWARD_POOL: Reward[] = [

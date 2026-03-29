@@ -123,7 +123,9 @@ export default function AdventureMap({
               "bg-gray-800/50 border-white/5 opacity-50 cursor-not-allowed"
             )}
           >
-            <Skull className={cn("w-8 h-8", currentEncounterIndex === currentLevel.encounters.length ? "text-white" : "text-gray-700")} />
+            <Skull className={cn("w-8 h-8 transition-colors duration-500", 
+              currentEncounterIndex === currentLevel.encounters.length ? "text-white" : 
+              currentLevel.boss.completed ? "text-white" : "text-gray-700")} />
             
             {currentEncounterIndex === currentLevel.encounters.length && (
               <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-tighter">
