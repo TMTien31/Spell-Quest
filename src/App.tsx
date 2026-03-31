@@ -35,6 +35,7 @@ import {
 import { cn, speak, countSyllables, levenshteinDistance, calculateDifficulty, getWeightedRandom, REWARD_POOL } from './lib/utils';
 import { Word, PlayerState, Level, Encounter, Reward, InventoryItem } from './types';
 import { INITIAL_WORDS } from './words';
+import { CONFIG } from './config';
 import LuckyWheel from './components/LuckyWheel';
 import AdventureMap from './components/AdventureMap';
 import CombatView from './components/CombatView';
@@ -42,9 +43,9 @@ import CombatView from './components/CombatView';
 type GameScreen = 'map' | 'combat' | 'spin' | 'words' | 'shop' | 'gameover';
 
 const INITIAL_PLAYER: PlayerState = {
-  hp: 100,
-  maxHp: 100,
-  coins: 0,
+  hp: CONFIG.STARTING_HP,
+  maxHp: CONFIG.STARTING_HP,
+  coins: CONFIG.STARTING_COINS,
   score: 0,
   level: 0,
   experience: 0,
@@ -214,10 +215,22 @@ export default function App() {
   });
   const [activeEncounter, setActiveEncounter] = useState<Encounter | null>(null);
 
-  const [showResetConfirm, setShowResetConfirm] = useState<'all' | 'map' | 'words' | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState<'all' | 'map' | 'words' | 'hard' | null>(null);
   const [showCongrats, setShowCongrats] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
+
+  // --- Global Keydown ---
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && showCongrats) {
+        setShowCongrats(false);
+        handleResetAll();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [showCongrats]);
 
   // --- Persistence ---
   useEffect(() => {
@@ -334,10 +347,9 @@ export default function App() {
           // Game completed!
           setPlayer(prev => ({
             ...prev,
-            coins: prev.coins + 100
+            coins: prev.coins + CONFIG.COINS_ON_COMPLETION
           }));
           setShowCongrats(true);
-          setScreen('map');
         }
       } else {
         const encounterIdx = level.encounters.findIndex(e => e.id === activeEncounter?.id);
@@ -358,7 +370,7 @@ export default function App() {
         // Reward player
         setPlayer(prev => ({
           ...prev,
-          coins: prev.coins + 20,
+          coins: prev.coins + CONFIG.COINS_PER_LEVEL,
           score: prev.score + 100
         }));
 
@@ -428,9 +440,10 @@ export default function App() {
     })));
   };
 
-  const handleResetMap = () => {
+  const handleResetMap = (newWords?: Word[]) => {
     setCurrentEncounterIndex(0);
-    const currentWords = words.length > 0 ? words : INITIAL_WORDS;
+    const wordsToUse = newWords || words;
+    const currentWords = wordsToUse.length > 0 ? wordsToUse : INITIAL_WORDS;
     const newLevels = generateLevels(currentWords, usedWords);
     
     // Completely reset the current level's progress and regenerate its words
@@ -452,10 +465,29 @@ export default function App() {
     setScreen('map');
   };
 
-  const handleResetAll = () => {
+  const handleResetAll = (newWords?: Word[]) => {
     setCurrentLevelIndex(0);
     setCurrentEncounterIndex(0);
-    const newPlayer = { ...INITIAL_PLAYER, hp: 100, score: 0, coins: 0 };
+    const newPlayer = { ...player };
+    setPlayer(newPlayer);
+    setUsedWords([]);
+    localStorage.setItem('spellbound_player', JSON.stringify(newPlayer));
+    localStorage.setItem('spellbound_current_level', '0');
+    localStorage.setItem('spellbound_current_encounter', '0');
+    localStorage.setItem('spellbound_used_words', JSON.stringify([]));
+    
+    const wordsToUse = newWords || words;
+    const currentWords = wordsToUse.length > 0 ? wordsToUse : INITIAL_WORDS;
+    const newLevels = generateLevels(currentWords, []);
+    setLevels(newLevels);
+    localStorage.setItem('spellbound_levels', JSON.stringify(newLevels));
+    setScreen('map');
+  };
+
+  const handleHardReset = () => {
+    setCurrentLevelIndex(0);
+    setCurrentEncounterIndex(0);
+    const newPlayer = { ...INITIAL_PLAYER, hp: CONFIG.STARTING_HP, maxHp: CONFIG.STARTING_HP, coins: CONFIG.STARTING_COINS, score: 0 };
     setPlayer(newPlayer);
     setUsedWords([]);
     localStorage.setItem('spellbound_player', JSON.stringify(newPlayer));
@@ -696,13 +728,13 @@ export default function App() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                  { type: 'hint', label: 'Hint Token', price: 50, description: 'Reveals one random letter.', icon: HelpCircle, color: 'text-blue-400' },
-                  { type: 'shield', label: 'Shield', price: 100, description: 'Blocks one mistake damage.', icon: Shield, color: 'text-green-400' },
-                  { type: 'reveal_letter', label: 'Reveal Letter', price: 150, description: 'Reveals two random letters.', icon: Zap, color: 'text-yellow-400' },
-                  { type: 'lucky_spin', label: 'Lucky Spin', price: 100, description: 'Try your luck for big rewards!', icon: Star, color: 'text-purple-400' },
-                  { type: 'candy', label: 'Magic Candy', price: 300, description: 'A sweet treat for high scorers.', icon: Cookie, color: 'text-pink-400' },
-                  { type: 'chocolate', label: 'Dark Chocolate', price: 450, description: 'Premium energy booster.', icon: Coffee, color: 'text-amber-600' },
-                  { type: 'cake', label: 'Victory Cake', price: 600, description: 'The ultimate celebration treat.', icon: IceCream, color: 'text-rose-400' },
+                  { type: 'hint', label: 'Hint Token', price: CONFIG.PRICE_HINT, description: 'Reveals one random letter.', icon: HelpCircle, color: 'text-blue-400' },
+                  { type: 'shield', label: 'Shield', price: CONFIG.PRICE_SHIELD, description: 'Blocks one mistake damage.', icon: Shield, color: 'text-green-400' },
+                  { type: 'reveal_letter', label: 'Reveal Letter', price: CONFIG.PRICE_REVEAL_LETTER, description: 'Reveals two random letters.', icon: Zap, color: 'text-yellow-400' },
+                  { type: 'lucky_spin', label: 'Lucky Spin', price: CONFIG.PRICE_LUCKY_SPIN, description: 'Try your luck for big rewards!', icon: Star, color: 'text-purple-400' },
+                  { type: 'candy', label: 'Magic Candy', price: CONFIG.PRICE_CANDY, description: 'A sweet treat for high scorers.', icon: Cookie, color: 'text-pink-400' },
+                  { type: 'chocolate', label: 'Dark Chocolate', price: CONFIG.PRICE_CHOCOLATE, description: 'Premium energy booster.', icon: Coffee, color: 'text-amber-600' },
+                  { type: 'cake', label: 'Victory Cake', price: CONFIG.PRICE_CAKE, description: 'The ultimate celebration treat.', icon: IceCream, color: 'text-rose-400' },
                 ].map(item => (
                   <div key={item.type} className="bg-white/5 p-6 rounded-3xl border border-white/10 flex flex-col items-center text-center space-y-4">
                     <div className={cn("p-4 bg-white/5 rounded-2xl border border-white/10", item.color)}>
@@ -763,8 +795,10 @@ export default function App() {
                 <div>
                   <h3 className="text-2xl font-black text-white mb-2">Are you sure?</h3>
                   <p className="text-gray-400">
-                    {showResetConfirm === 'all' 
-                      ? "This will completely reset your entire journey, including all items, coins, and progress. This action cannot be undone."
+                    {showResetConfirm === 'hard'
+                      ? "This will completely reset your entire journey, including all items, coins, and HP. This action cannot be undone."
+                      : showResetConfirm === 'all' 
+                      ? "This will reset your map progress but keep your items, coins, and HP."
                       : showResetConfirm === 'words'
                       ? "Are you sure you want to clear all imported words and reset your progress? This action cannot be undone."
                       : "This will reset your progress on the current map. You will keep your items and coins, but map progress will be lost."}
@@ -779,13 +813,14 @@ export default function App() {
                   </button>
                   <button
                     onClick={() => {
-                      if (showResetConfirm === 'all') {
+                      if (showResetConfirm === 'hard') {
+                        handleHardReset();
+                      } else if (showResetConfirm === 'all') {
                         handleResetAll();
                       } else if (showResetConfirm === 'words') {
                         setWords(INITIAL_WORDS);
                         localStorage.setItem('spellbound_words', JSON.stringify(INITIAL_WORDS));
-                        localStorage.removeItem('spellbound_levels');
-                        window.location.reload(); // Reload to regenerate levels with new words
+                        handleResetAll(INITIAL_WORDS);
                       } else {
                         handleResetMap();
                       }
@@ -827,12 +862,13 @@ export default function App() {
                     <div className="text-sm text-gray-400 uppercase tracking-wider font-bold mb-1">Reward</div>
                     <div className="flex items-center justify-center gap-2 text-yellow-400 font-black text-2xl">
                       <Coins className="w-6 h-6" />
-                      +100 Coins
+                      +{CONFIG.COINS_ON_COMPLETION} Coins
                     </div>
                   </div>
                   <button
                     onClick={() => {
                       setShowCongrats(false);
+                      handleResetAll();
                     }}
                     className="w-full py-4 rounded-xl font-black bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black uppercase tracking-widest transition-all"
                   >

@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import { Reward } from '../types';
+import { CONFIG } from '../config';
 
 /**
  * Utility for merging tailwind classes.
@@ -177,11 +178,39 @@ export async function fetchWordInfo(word: string) {
       }
     }
 
+    let vietnameseMeaning = '';
+    try {
+      const viRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(word)}`);
+      if (viRes.ok) {
+        const viData = await viRes.json();
+        if (viData && viData[0] && viData[0][0] && viData[0][0][0]) {
+          vietnameseMeaning = viData[0][0][0];
+        }
+      }
+    } catch (e) {
+      console.error('Translation error', e);
+    }
+
+    let detailedVietnameseMeaning = '';
+    if (definition) {
+      try {
+        const viDefRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(definition)}`);
+        if (viDefRes.ok) {
+          const viDefData = await viDefRes.json();
+          if (viDefData && viDefData[0]) {
+            detailedVietnameseMeaning = viDefData[0].map((item: any) => item[0]).join('');
+          }
+        }
+      } catch (e) {
+        console.error('Translation error', e);
+      }
+    }
+
     return {
       phonetic,
       definition,
-      vietnameseMeaning: '',
-      detailedVietnameseMeaning: ''
+      vietnameseMeaning,
+      detailedVietnameseMeaning
     };
   } catch (error) {
     console.error('Error fetching word info:', error);
@@ -190,9 +219,9 @@ export async function fetchWordInfo(word: string) {
 }
 
 export const REWARD_POOL: Reward[] = [
-  { type: 'coin', label: '50 Coins', weight: 50, color: '#EAB308', value: 50 },
-  { type: 'coin', label: '100 Coins', weight: 25, color: '#FACC15', value: 100 },
-  { type: 'coin', label: '150 Coins', weight: 10, color: '#FDE047', value: 150 },
+  { type: 'coin', label: `${CONFIG.LUCKY_SPIN_COIN_1} Coins`, weight: 50, color: '#EAB308', value: CONFIG.LUCKY_SPIN_COIN_1 },
+  { type: 'coin', label: `${CONFIG.LUCKY_SPIN_COIN_2} Coins`, weight: 25, color: '#FACC15', value: CONFIG.LUCKY_SPIN_COIN_2 },
+  { type: 'coin', label: `${CONFIG.LUCKY_SPIN_COIN_3} Coins`, weight: 10, color: '#FDE047', value: CONFIG.LUCKY_SPIN_COIN_3 },
   { type: 'hint', label: 'Hint Token', weight: 30, color: '#3B82F6' },
   { type: 'shield', label: 'Shield', weight: 15, color: '#10B981' },
   { type: 'reveal_letter', label: 'Reveal Letter', weight: 10, color: '#F97316' },

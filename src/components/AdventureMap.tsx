@@ -9,7 +9,7 @@ interface AdventureMapProps {
   currentLevelIndex: number;
   currentEncounterIndex: number;
   onSelectEncounter: (encounter: Encounter) => void;
-  onResetRequest: (type: 'map' | 'all') => void;
+  onResetRequest: (type: 'map' | 'all' | 'hard') => void;
 }
 
 export default function AdventureMap({ 
@@ -143,7 +143,7 @@ export default function AdventureMap({
         </p>
       </div>
       {/* Reset Controls */}
-      <div className="flex justify-center gap-4 mt-8">
+      <div className="flex justify-center flex-wrap gap-4 mt-8">
         <button
           onClick={() => onResetRequest('map')}
           className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold border border-white/5 transition-all"
@@ -153,10 +153,17 @@ export default function AdventureMap({
         </button>
         <button
           onClick={() => onResetRequest('all')}
+          className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded-xl text-xs font-bold border border-yellow-500/10 transition-all"
+        >
+          <RotateCcw className="w-4 h-4" />
+          SOFT RESET (KEEP HP/COINS)
+        </button>
+        <button
+          onClick={() => onResetRequest('hard')}
           className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold border border-red-500/10 transition-all"
         >
           <Skull className="w-4 h-4" />
-          RESET ALL JOURNEY
+          HARD RESET
         </button>
       </div>
     </div>

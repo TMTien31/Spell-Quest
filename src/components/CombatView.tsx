@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Shield, Zap, Volume2, Mic2, SkipForward, HelpCircle, Trophy, Swords, Skull, DoorClosed, Gift } from 'lucide-react';
+import { Heart, Shield, Zap, Volume2, Volume1, SkipForward, HelpCircle, Trophy, Swords, Skull, DoorClosed, Gift } from 'lucide-react';
 import { Word, PlayerState, Encounter, InventoryItem } from '../types';
 import { cn, speak, countSyllables, levenshteinDistance, fetchWordInfo } from '../lib/utils';
+import { CONFIG } from '../config';
 
 interface CombatViewProps {
   encounter: Encounter;
@@ -128,15 +129,33 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
     }
   };
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !userInput[index] && index > 0) {
-      const prevInput = document.getElementById(`input-${index - 1}`);
-      prevInput?.focus();
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (!userInput[index] && index > 0) {
+        const prevInput = document.getElementById(`input-${index - 1}`) as HTMLInputElement;
+        if (prevInput) {
+          prevInput.focus();
+        }
+      }
     }
     if (e.key === 'Enter') {
-      handleSubmit();
+      if (isCorrect) {
+        onComplete(true, { damageDealt: 100, damageTaken: 0 });
+      } else {
+        handleSubmit();
+      }
     }
   };
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && isCorrect) {
+        onComplete(true, { damageDealt: 100, damageTaken: 0 });
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isCorrect, onComplete]);
 
   const handleSubmit = async () => {
     const typedWord = userInput.join('').toLowerCase();
@@ -171,18 +190,8 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
       setTimeout(() => setShake(false), 500);
 
       const distance = levenshteinDistance(typedWord, targetWord);
-      const correctChars = typedWord.split('').filter((c, i) => c === targetWord[i]).length;
-      let damageTaken = Math.floor(20 * (1 - correctChars / targetWord.length));
+      let damageTaken = CONFIG.DEDUCTED_HP_ON_LOSS;
       
-      // Keep correct characters, clear incorrect ones
-      const nextInput = [...userInput];
-      targetWord.split('').forEach((char, idx) => {
-        if (userInput[idx] !== char) {
-          nextInput[idx] = '';
-        }
-      });
-      setUserInput(nextInput);
-
       if (isShielded) {
         damageTaken = 0;
         setIsShielded(false);
@@ -309,13 +318,29 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
             shake && "animate-shake"
           )}
         >
-          <div className="flex justify-center gap-6">
-            <button 
-              onClick={() => speak(currentWord.text)}
-              className="w-20 h-20 bg-white/5 text-white rounded-full flex items-center justify-center border border-white/10 hover:bg-white/10 transition-all shadow-xl"
-            >
-              <Volume2 className="w-10 h-10" />
-            </button>
+          <div className="flex justify-center gap-12">
+            <div className="flex flex-col items-center gap-3">
+              <button 
+                onClick={() => speak(currentWord.text)}
+                className="w-20 h-20 bg-blue-500/10 text-blue-400 rounded-full flex items-center justify-center border border-blue-500/20 hover:bg-blue-500/20 transition-all shadow-xl"
+              >
+                <Volume2 className="w-10 h-10" />
+              </button>
+              <span className="text-[10px] font-black text-blue-400/70 uppercase tracking-widest">Target Word</span>
+            </div>
+
+            <div className="flex flex-col items-center gap-3">
+              <button 
+                onClick={() => {
+                  const typed = userInput.join('').toLowerCase();
+                  if (typed) speak(typed);
+                }}
+                className="w-20 h-20 bg-white/5 text-white rounded-full flex items-center justify-center border border-white/10 hover:bg-white/10 transition-all shadow-xl"
+              >
+                <Volume1 className="w-10 h-10" />
+              </button>
+              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Your Input</span>
+            </div>
           </div>
 
           {/* Word Info During Input */}
@@ -366,7 +391,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
                         <input
                           id={`input-${idx}`}
                           type="text"
-                          value={isRevealed ? char : userInput[idx] || ''}
+                          value={userInput[idx] || ''}
                           onChange={(e) => handleInputChange(idx, e.target.value)}
                           onKeyDown={(e) => handleKeyDown(idx, e)}
                           disabled={isCorrect}
@@ -376,7 +401,9 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
                               ? "bg-green-500/20 border-green-500 text-green-500" 
                               : showFeedback && userInput[idx] && !isCorrectChar
                                 ? "bg-red-500/20 border-red-500 text-red-500" 
-                                : "bg-white/10 border-white/20 text-white focus:border-blue-500 focus:bg-white/20"
+                                : isRevealed
+                                  ? "bg-yellow-500/20 border-yellow-500 text-yellow-500"
+                                  : "bg-white/10 border-white/20 text-white focus:border-blue-500 focus:bg-white/20"
                           )}
                           autoComplete="off"
                         />
