@@ -147,16 +147,6 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
     }
   };
 
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && isCorrect) {
-        onComplete(true, { damageDealt: 100, damageTaken: 0 });
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [isCorrect, onComplete]);
-
   const handleSubmit = async () => {
     const typedWord = userInput.join('').toLowerCase();
     const targetWord = currentWord.text.toLowerCase();
@@ -479,6 +469,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
 
           {isCorrect ? (
             <button
+              autoFocus
               onClick={() => onComplete(true, { damageDealt: 100, damageTaken: 0 })}
               className="w-full bg-green-500 text-white font-black py-4 rounded-2xl shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >

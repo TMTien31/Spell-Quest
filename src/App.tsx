@@ -61,9 +61,7 @@ export default function App() {
   // --- Helpers ---
   const generateLevels = (currentWords: Word[], usedWordsList: string[]) => {
     console.log('Generating levels with used words:', usedWordsList);
-    // Filter out initial words if the library has custom words
-    const customWords = currentWords.filter(w => !INITIAL_WORDS.some(iw => iw.id === w.id));
-    const pool = customWords.length > 0 ? customWords : currentWords;
+    const pool = currentWords.length > 0 ? currentWords : INITIAL_WORDS;
 
     // Filter out used words
     const availablePool = pool.filter(w => !usedWordsList.includes(w.text.toLowerCase()));
@@ -220,18 +218,6 @@ export default function App() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
 
-  // --- Global Keydown ---
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && showCongrats) {
-        setShowCongrats(false);
-        handleResetAll();
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [showCongrats]);
-
   // --- Persistence ---
   useEffect(() => {
     localStorage.setItem('spellbound_player', JSON.stringify(player));
@@ -244,6 +230,51 @@ export default function App() {
     console.log('Used words count:', usedWords.length);
     console.log('Used words list:', usedWords);
   }, [player, levels, currentLevelIndex, currentEncounterIndex, usedWords]);
+
+  // --- Update Uncompleted Encounters when Library Changes ---
+  useEffect(() => {
+    if (words.length === 0) return;
+    
+    setLevels(prevLevels => {
+      let hasChanges = false;
+      let currentFinalPool = words.filter(w => !usedWords.includes(w.id));
+      if (currentFinalPool.length < 15) {
+        currentFinalPool = [...words];
+      }
+      
+      const getRandomWord = (difficulty?: 'easy' | 'medium' | 'hard') => {
+        const filtered = difficulty ? currentFinalPool.filter((w: any) => w.difficulty === difficulty) : currentFinalPool;
+        const source = filtered.length > 0 ? filtered : currentFinalPool;
+        if (source.length === 0) return words[Math.floor(Math.random() * words.length)];
+        const randomIndex = Math.floor(Math.random() * source.length);
+        const selectedWord = source[randomIndex];
+        currentFinalPool = currentFinalPool.filter(w => w.id !== selectedWord.id);
+        return selectedWord;
+      };
+
+      const updatedLevels = prevLevels.map((level, i) => {
+        if (level.completed) return level;
+        
+        const newEncounters = level.encounters.map((enc, j) => {
+          // Do not update completed encounters or the currently active encounter if in combat
+          if (enc.completed || (i === currentLevelIndex && j === currentEncounterIndex && screen === 'combat')) return enc;
+          
+          hasChanges = true;
+          return { ...enc, word: getRandomWord(enc.type === 'boss' ? 'hard' : undefined) };
+        });
+        
+        let newBoss = level.boss;
+        if (!level.boss.completed && !(i === currentLevelIndex && level.encounters.every(e => e.completed) && screen === 'combat')) {
+          hasChanges = true;
+          newBoss = { ...level.boss, word: getRandomWord('hard') };
+        }
+        
+        return { ...level, encounters: newEncounters, boss: newBoss };
+      });
+      
+      return hasChanges ? updatedLevels : prevLevels;
+    });
+  }, [words]); // Only trigger when words change
 
   useEffect(() => {
     if (levels.length > 0 && currentLevelIndex >= levels.length) {
@@ -631,6 +662,7 @@ export default function App() {
               </div>
 
               <button 
+                autoFocus
                 onClick={restartGame}
                 className="bg-white text-black font-black px-12 py-5 rounded-3xl hover:scale-105 active:scale-95 transition-all"
               >
@@ -866,6 +898,7 @@ export default function App() {
                     </div>
                   </div>
                   <button
+                    autoFocus
                     onClick={() => {
                       setShowCongrats(false);
                       handleResetAll();
