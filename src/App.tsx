@@ -36,23 +36,28 @@ import { cn, speak, countSyllables, levenshteinDistance, calculateDifficulty, ge
 import { Word, PlayerState, Level, Encounter, Reward, InventoryItem } from './types';
 import { INITIAL_WORDS } from './words';
 import { CONFIG } from './config';
+import { TOPICS, Topic } from './topics';
 import LuckyWheel from './components/LuckyWheel';
 import AdventureMap from './components/AdventureMap';
 import CombatView from './components/CombatView';
 
-type GameScreen = 'map' | 'combat' | 'spin' | 'words' | 'shop' | 'gameover';
+type GameScreen = 'landing' | 'login' | 'signup' | 'mode_select' | 'topic_select' | 'map' | 'combat' | 'spin' | 'words' | 'shop' | 'gameover';
+type GameMode = 'sandbox' | 'adventure';
 
 const INITIAL_PLAYER: PlayerState = {
   hp: CONFIG.STARTING_HP,
   maxHp: CONFIG.STARTING_HP,
+  shield: CONFIG.STARTING_SHIELD,
+  maxShield: CONFIG.STARTING_SHIELD,
   coins: CONFIG.STARTING_COINS,
-  score: 0,
+  streak: 0,
   level: 0,
   experience: 0,
   inventory: [
     { type: 'hint', count: 3 },
     { type: 'shield', count: 1 },
-    { type: 'reveal_letter', count: 1 }
+    { type: 'reveal_letter', count: 1 },
+    { type: 'armor_plate', count: 1 }
   ],
   usedWordIds: []
 };
@@ -161,10 +166,22 @@ export default function App() {
   };
 
   // --- State ---
-  const [screen, setScreen] = useState<GameScreen>('map');
+  const [screen, setScreen] = useState<GameScreen>('landing');
+  const [gameMode, setGameMode] = useState<GameMode>('sandbox');
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  
   const [player, setPlayer] = useState<PlayerState>(() => {
     const saved = localStorage.getItem('spellbound_player');
-    return saved ? JSON.parse(saved) : INITIAL_PLAYER;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...INITIAL_PLAYER, ...parsed };
+      } catch (e) {
+        console.error('Failed to parse player state', e);
+        return INITIAL_PLAYER;
+      }
+    }
+    return INITIAL_PLAYER;
   });
   const [words, setWords] = useState<Word[]>(() => {
     const saved = localStorage.getItem('spellbound_words');
@@ -343,7 +360,35 @@ export default function App() {
     setScreen('combat');
   };
 
-  const handleCombatComplete = (success: boolean, stats: { damageDealt: number; damageTaken: number }) => {
+  const handleCombatDamage = useCallback((damage: number, bypassShield: boolean = false) => {
+    setPlayer(prev => {
+      let finalDamage = damage;
+      let newShield = prev.shield ?? 0;
+      let newHp = prev.hp ?? 0;
+
+      if (!bypassShield && newShield > 0) {
+        if (newShield >= damage) {
+          newShield -= damage;
+          finalDamage = 0;
+        } else {
+          finalDamage -= newShield;
+          newShield = 0;
+        }
+      }
+
+      if (finalDamage > 0) {
+        newHp = Math.max(0, newHp - finalDamage);
+      }
+
+      return {
+        ...prev,
+        hp: newHp,
+        shield: newShield
+      };
+    });
+  }, []);
+
+  const handleCombatComplete = useCallback((success: boolean, stats: { damageDealt: number; damageTaken: number }) => {
     if (success) {
       // Update encounter status
       const newLevels = [...levels];
@@ -355,6 +400,13 @@ export default function App() {
         setActiveEncounter(null);
         return;
       }
+
+      // Update streak and shield on success
+      setPlayer(prev => ({
+        ...prev,
+        streak: (prev.streak ?? 0) + 1,
+        shield: Math.min(prev.maxShield ?? CONFIG.STARTING_SHIELD, (prev.shield ?? 0) + CONFIG.SHIELD_RESTORE_ON_CORRECT)
+      }));
       
       if (activeEncounter?.type === 'boss') {
         level.boss.completed = true;
@@ -401,8 +453,7 @@ export default function App() {
         // Reward player
         setPlayer(prev => ({
           ...prev,
-          coins: prev.coins + CONFIG.COINS_PER_LEVEL,
-          score: prev.score + 100
+          coins: prev.coins + CONFIG.COINS_PER_LEVEL
         }));
 
         setScreen('map'); // Removed spin from streak milestone
@@ -410,6 +461,11 @@ export default function App() {
       setLevels(newLevels);
     } else {
       // Player failed
+      setPlayer(prev => ({
+        ...prev,
+        streak: 0
+      }));
+      
       const newHp = Math.max(0, player.hp - stats.damageTaken);
       setPlayer(prev => ({
         ...prev,
@@ -424,7 +480,7 @@ export default function App() {
       }
     }
     setActiveEncounter(null);
-  };
+  }, [levels, currentLevelIndex, activeEncounter, player.hp]);
 
   const handleSpinComplete = (reward: Reward) => {
     setPlayer(prev => {
@@ -447,14 +503,45 @@ export default function App() {
     setScreen('map');
   };
 
-  const handleUseItem = (itemType: InventoryItem['type']) => {
+  const handleUseItem = useCallback((itemType: InventoryItem['type']) => {
     setPlayer(prev => {
       const newInventory = prev.inventory.map(item => 
         item.type === itemType ? { ...item, count: item.count - 1 } : item
       );
-      return { ...prev, inventory: newInventory };
+      
+      let newShield = prev.shield ?? 0;
+      if (itemType === 'armor_plate') {
+        newShield = Math.min(prev.maxShield ?? CONFIG.STARTING_SHIELD, (prev.shield ?? 0) + CONFIG.SHIELD_RESTORE_ITEM_VALUE);
+      }
+
+      return { ...prev, inventory: newInventory, shield: newShield };
     });
     // Logic for item effects would go here or in CombatView
+  }, []);
+
+  const startAdventureMode = (topic: Topic) => {
+    setGameMode('adventure');
+    setSelectedTopic(topic);
+    setUsedWords([]);
+    const newLevels = generateLevels(topic.words, []);
+    setLevels(newLevels);
+    setCurrentLevelIndex(0);
+    setCurrentEncounterIndex(0);
+    setPlayer(INITIAL_PLAYER);
+    setScreen('map');
+  };
+
+  const startSandboxMode = () => {
+    setGameMode('sandbox');
+    setSelectedTopic(null);
+    setUsedWords([]);
+    const currentWords = words.length > 0 ? words : INITIAL_WORDS;
+    const newLevels = generateLevels(currentWords, []);
+    setLevels(newLevels);
+    setCurrentLevelIndex(0);
+    setCurrentEncounterIndex(0);
+    setPlayer(INITIAL_PLAYER);
+    setScreen('map');
   };
 
   const restartGame = () => {
@@ -518,7 +605,7 @@ export default function App() {
   const handleHardReset = () => {
     setCurrentLevelIndex(0);
     setCurrentEncounterIndex(0);
-    const newPlayer = { ...INITIAL_PLAYER, hp: CONFIG.STARTING_HP, maxHp: CONFIG.STARTING_HP, coins: CONFIG.STARTING_COINS, score: 0 };
+    const newPlayer = { ...INITIAL_PLAYER, hp: CONFIG.STARTING_HP, maxHp: CONFIG.STARTING_HP, coins: CONFIG.STARTING_COINS };
     setPlayer(newPlayer);
     setUsedWords([]);
     localStorage.setItem('spellbound_player', JSON.stringify(newPlayer));
@@ -535,8 +622,85 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0F0F13] text-[#E0E0E6] font-sans selection:bg-blue-500/30">
+      {screen === 'landing' && (
+        <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
+          <h1 className="text-6xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-blue-400 to-purple-600">SPELLBOUND</h1>
+          <p className="text-gray-400 max-w-md">Embark on an epic journey of words and magic.</p>
+          <div className="flex gap-4">
+            <button onClick={() => setScreen('login')} className="bg-white text-black font-black px-8 py-4 rounded-2xl hover:scale-105 transition-all">LOGIN</button>
+            <button onClick={() => setScreen('signup')} className="bg-white/10 text-white font-black px-8 py-4 rounded-2xl hover:bg-white/20 transition-all">SIGN UP</button>
+          </div>
+          <button onClick={() => setScreen('mode_select')} className="text-sm text-gray-500 hover:text-white transition-colors">Play as Guest</button>
+        </div>
+      )}
+
+      {screen === 'login' && (
+        <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
+          <h2 className="text-4xl font-black">Login</h2>
+          {/* TODO: Implement real authentication here (e.g., Firebase Auth, JWT) */}
+          <p className="text-yellow-500 text-sm max-w-xs">Note: This is a placeholder. You can enter anything to proceed.</p>
+          <input type="email" placeholder="Email" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <input type="password" placeholder="Password" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <button onClick={() => setScreen('mode_select')} className="bg-blue-500 text-white font-black px-8 py-4 rounded-2xl w-64 hover:bg-blue-600 transition-all">LOGIN</button>
+          <button onClick={() => setScreen('landing')} className="text-sm text-gray-500 hover:text-white transition-colors">Back</button>
+        </div>
+      )}
+
+      {screen === 'signup' && (
+        <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
+          <h2 className="text-4xl font-black">Sign Up</h2>
+          {/* TODO: Implement real authentication here (e.g., Firebase Auth, JWT) */}
+          <p className="text-yellow-500 text-sm max-w-xs">Note: This is a placeholder. You can enter anything to proceed.</p>
+          <input type="text" placeholder="Username" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <input type="email" placeholder="Email" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <input type="password" placeholder="Password" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <button onClick={() => setScreen('mode_select')} className="bg-purple-500 text-white font-black px-8 py-4 rounded-2xl w-64 hover:bg-purple-600 transition-all">CREATE ACCOUNT</button>
+          <button onClick={() => setScreen('landing')} className="text-sm text-gray-500 hover:text-white transition-colors">Back</button>
+        </div>
+      )}
+
+      {screen === 'mode_select' && (
+        <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
+          <h2 className="text-4xl font-black">Select Game Mode</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full">
+            <button onClick={() => setScreen('topic_select')} className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 p-8 rounded-[32px] hover:scale-105 transition-all text-left space-y-4">
+              <MapIcon className="w-12 h-12 text-green-400" />
+              <div>
+                <h3 className="text-2xl font-black text-white">Adventure Mode</h3>
+                <p className="text-gray-400 mt-2">Explore themed maps and learn specific topics like Animals or Fruits.</p>
+              </div>
+            </button>
+            <button onClick={() => startSandboxMode()} className="bg-gradient-to-br from-blue-500/20 to-purple-600/20 border border-blue-500/30 p-8 rounded-[32px] hover:scale-105 transition-all text-left space-y-4">
+              <BookOpen className="w-12 h-12 text-blue-400" />
+              <div>
+                <h3 className="text-2xl font-black text-white">Sandbox Mode</h3>
+                <p className="text-gray-400 mt-2">Play with your own custom vocabulary library. Add, edit, and master your own words.</p>
+              </div>
+            </button>
+          </div>
+          <button onClick={() => setScreen('landing')} className="text-sm text-gray-500 hover:text-white transition-colors">Back to Landing</button>
+        </div>
+      )}
+
+      {screen === 'topic_select' && (
+        <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
+          <h2 className="text-4xl font-black">Choose a Topic</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl w-full">
+            {TOPICS.map(topic => (
+              <button key={topic.id} onClick={() => startAdventureMode(topic)} className="bg-white/5 border border-white/10 p-6 rounded-3xl hover:bg-white/10 transition-all text-left space-y-2">
+                <h3 className="text-xl font-black text-white">{topic.name}</h3>
+                <p className="text-sm text-gray-400">{topic.description}</p>
+                <div className="text-xs font-bold text-blue-400 pt-2">{topic.words.length} words</div>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setScreen('mode_select')} className="text-gray-500 hover:text-white transition-colors">Back to Modes</button>
+        </div>
+      )}
+
       {/* Header / HUD */}
-      <header className="bg-[#16161D] border-b border-white/5 sticky top-0 z-20 px-4 py-4">
+      {!['landing', 'login', 'signup', 'mode_select', 'topic_select'].includes(screen) && (
+        <header className="bg-[#16161D] border-b border-white/5 sticky top-0 z-20 px-4 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/20">
@@ -559,7 +723,9 @@ export default function App() {
           </div>
         </div>
       </header>
+      )}
 
+      {!['landing', 'login', 'signup', 'mode_select', 'topic_select'].includes(screen) && (
       <main className="max-w-5xl mx-auto px-4 py-8">
         {/* Screen Navigation (Only for non-combat/spin screens) */}
         {['map', 'words', 'shop'].includes(screen) && (
@@ -568,7 +734,7 @@ export default function App() {
               {[
                 { id: 'map', icon: MapIcon, label: 'Adventure' },
                 { id: 'shop', icon: ShoppingBag, label: 'Shop' },
-                { id: 'words', icon: BookOpen, label: 'Library' }
+                ...(gameMode === 'sandbox' ? [{ id: 'words', icon: BookOpen, label: 'Library' }] : [])
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -618,6 +784,7 @@ export default function App() {
                 player={player}
                 onComplete={handleCombatComplete}
                 onUseItem={handleUseItem}
+                onDamage={handleCombatDamage}
               />
             </motion.div>
           )}
@@ -651,10 +818,6 @@ export default function App() {
               </div>
               
               <div className="bg-[#16161D] p-8 rounded-[40px] border border-white/5 max-w-md mx-auto space-y-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 font-bold uppercase">Final Score</span>
-                  <span className="text-white font-black">{player.score}</span>
-                </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 font-bold uppercase">Level Reached</span>
                   <span className="text-white font-black">{levels[currentLevelIndex]?.name || 'Unknown Level'}</span>
@@ -767,6 +930,7 @@ export default function App() {
                   { type: 'candy', label: 'Magic Candy', price: CONFIG.PRICE_CANDY, description: 'A sweet treat for high scorers.', icon: Cookie, color: 'text-pink-400' },
                   { type: 'chocolate', label: 'Dark Chocolate', price: CONFIG.PRICE_CHOCOLATE, description: 'Premium energy booster.', icon: Coffee, color: 'text-amber-600' },
                   { type: 'cake', label: 'Victory Cake', price: CONFIG.PRICE_CAKE, description: 'The ultimate celebration treat.', icon: IceCream, color: 'text-rose-400' },
+                  { type: 'armor_plate', label: 'Armor Plate', price: CONFIG.PRICE_ARMOR_PLATE, description: 'Restores a portion of your shield.', icon: Shield, color: 'text-purple-400' },
                 ].map(item => (
                   <div key={item.type} className="bg-white/5 p-6 rounded-3xl border border-white/10 flex flex-col items-center text-center space-y-4">
                     <div className={cn("p-4 bg-white/5 rounded-2xl border border-white/10", item.color)}>
@@ -960,6 +1124,7 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+      )}
     </div>
   );
 }

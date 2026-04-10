@@ -225,4 +225,5 @@ export const REWARD_POOL: Reward[] = [
   { type: 'hint', label: 'Hint Token', weight: 30, color: '#3B82F6' },
   { type: 'shield', label: 'Shield', weight: 15, color: '#10B981' },
   { type: 'reveal_letter', label: 'Reveal Letter', weight: 10, color: '#F97316' },
+  { type: 'armor_plate', label: 'Armor Plate', weight: 15, color: '#8B5CF6' },
 ];

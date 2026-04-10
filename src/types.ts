@@ -12,15 +12,17 @@ export interface Word {
 }
 
 export interface InventoryItem {
-  type: 'hint' | 'shield' | 'reveal_letter' | 'life' | 'x2_score' | 'lucky_spin' | 'candy' | 'chocolate' | 'cake';
+  type: 'hint' | 'shield' | 'reveal_letter' | 'life' | 'lucky_spin' | 'candy' | 'chocolate' | 'cake' | 'armor_plate';
   count: number;
 }
 
 export interface PlayerState {
   hp: number;
   maxHp: number;
+  shield: number;
+  maxShield: number;
   coins: number;
-  score: number;
+  streak: number;
   level: number;
   experience: number;
   inventory: InventoryItem[];
@@ -48,7 +50,7 @@ export interface Level {
 }
 
 export interface Reward {
-  type: 'coin' | 'hint' | 'life' | 'x2_score' | 'shield' | 'reveal_letter' | 'lucky_spin' | 'candy' | 'chocolate' | 'cake';
+  type: 'coin' | 'hint' | 'life' | 'shield' | 'reveal_letter' | 'lucky_spin' | 'candy' | 'chocolate' | 'cake' | 'armor_plate';
   label: string;
   weight: number;
   color: string;

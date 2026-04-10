@@ -10,9 +10,10 @@ interface CombatViewProps {
   player: PlayerState;
   onComplete: (success: boolean, stats: { damageDealt: number; damageTaken: number }) => void;
   onUseItem: (itemType: InventoryItem['type']) => void;
+  onDamage: (damage: number, bypassShield?: boolean) => void;
 }
 
-export default function CombatView({ encounter, player, onComplete, onUseItem }: CombatViewProps) {
+export default function CombatView({ encounter, player, onComplete, onUseItem, onDamage }: CombatViewProps) {
   const [userInput, setUserInput] = useState<string[]>(new Array(encounter.word.text.length).fill(''));
   const [attempts, setAttempts] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -24,6 +25,8 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
   const [isShielded, setIsShielded] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<InventoryItem['type'] | null>(null);
   const [dictionaryInfo, setDictionaryInfo] = useState<{ phonetic?: string; meaning?: string; vietnamese?: string; vietnameseMeaning?: string } | null>(null);
+  const [timer, setTimer] = useState(CONFIG.BOSS_TIMER_SECONDS);
+  const [bossAttacking, setBossAttacking] = useState(false);
 
   const currentWord = encounter.word;
 
@@ -65,6 +68,27 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
     }, 500);
     return () => clearTimeout(timer);
   }, [currentWord.text]);
+
+  // Boss Timer Logic
+  useEffect(() => {
+    if (encounter.type !== 'boss' || isCorrect || player.hp <= 0) return;
+
+    const interval = setInterval(() => {
+      setTimer(prev => Math.max(0, prev - 0.1));
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [encounter.type, isCorrect, player.hp]);
+
+  useEffect(() => {
+    if (encounter.type === 'boss' && timer <= 0 && !isCorrect && player.hp > 0) {
+      // Boss attacks!
+      setBossAttacking(true);
+      onDamage(CONFIG.BOSS_DAMAGE);
+      setTimeout(() => setBossAttacking(false), 500);
+      setTimer(CONFIG.BOSS_TIMER_SECONDS); // Reset timer
+    }
+  }, [timer, encounter.type, isCorrect, player.hp, onDamage]);
 
   const handleUseItemInternal = (itemType: InventoryItem['type']) => {
     if (isCorrect) return;
@@ -110,6 +134,11 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
           
           onUseItem(itemType);
         }
+        break;
+      }
+      case 'armor_plate': {
+        onUseItem(itemType);
+        setMessage({ text: 'SHIELD RESTORED!', type: 'info' });
         break;
       }
     }
@@ -194,7 +223,10 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
 
       speak(typedWord);
 
-      if (attempts + 1 >= 3 || player.hp - damageTaken <= 0) {
+      const bypassShield = attempts + 1 >= 3;
+      onDamage(damageTaken, bypassShield);
+
+      if (attempts + 1 >= 5 || player.hp - damageTaken <= 0) {
         onComplete(false, { damageDealt: 0, damageTaken });
       }
     }
@@ -210,13 +242,13 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
     }
   };
 
-  const getEncounterIcon = () => {
+  const getEncounterIcon = (className?: string) => {
     switch (encounter.type) {
-      case 'gate': return <DoorClosed className="w-12 h-12 text-blue-400" />;
-      case 'enemy': return <Swords className="w-12 h-12 text-red-400" />;
-      case 'treasure': return <Gift className="w-12 h-12 text-yellow-400" />;
-      case 'boss': return <Skull className="w-16 h-16 text-purple-600 animate-pulse" />;
-      default: return <Swords className="w-12 h-12" />;
+      case 'gate': return <DoorClosed className={cn('w-12 h-12 text-blue-400', className)} />;
+      case 'enemy': return <Swords className={cn('w-12 h-12 text-red-400', className)} />;
+      case 'treasure': return <Gift className={cn('w-12 h-12 text-yellow-400', className)} />;
+      case 'boss': return <Skull className={cn('w-16 h-16 text-purple-600 animate-pulse', className)} />;
+      default: return <Swords className={cn('w-12 h-12', className)} />;
     }
   };
 
@@ -231,11 +263,34 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
               <div className="w-32 h-2 bg-white/5 rounded-full overflow-hidden">
                 <motion.div 
                   className="h-full bg-red-500"
-                  animate={{ width: `${(player.hp / player.maxHp) * 100}%` }}
+                  animate={{ width: `${((player.hp ?? 0) / (player.maxHp || 1)) * 100}%` }}
                 />
               </div>
             </div>
-            <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Player HP: {player.hp}</div>
+            <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Player HP: {player.hp ?? 0}</div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-blue-400 fill-blue-400" />
+              <div className="w-32 h-2 bg-white/5 rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-blue-400"
+                  animate={{ width: `${((player.shield ?? 0) / (player.maxShield || 1)) * 100}%` }}
+                />
+              </div>
+            </div>
+            <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Shield: {player.shield ?? 0}</div>
+          </div>
+          
+          <div className="h-8 w-px bg-white/10" />
+
+          <div className="flex flex-col items-center">
+            <div className="flex items-center gap-1 text-yellow-500">
+              <Zap className="w-4 h-4 fill-yellow-500" />
+              <span className="text-lg font-black">{player.streak ?? 0}</span>
+            </div>
+            <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Streak</div>
           </div>
           
           <div className="h-8 w-px bg-white/10" />
@@ -257,6 +312,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
                   {item.type === 'hint' && <HelpCircle className="w-4 h-4 text-blue-400" />}
                   {item.type === 'shield' && <Shield className="w-4 h-4 text-green-400" />}
                   {item.type === 'reveal_letter' && <Zap className="w-4 h-4 text-yellow-400" />}
+                  {item.type === 'armor_plate' && <Shield className="w-4 h-4 text-purple-400" />}
                   <span className="absolute -top-2 -right-2 bg-white text-black text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center">
                     {item.count}
                   </span>
@@ -270,6 +326,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
                     {item.type === 'hint' && "Reveals one random letter of the word."}
                     {item.type === 'shield' && "Blocks the next incoming attack completely."}
                     {item.type === 'reveal_letter' && "Reveals two random letters instantly."}
+                    {item.type === 'armor_plate' && "Restores a portion of your shield."}
                   </div>
                 )}
               </div>
@@ -278,25 +335,39 @@ export default function CombatView({ encounter, player, onComplete, onUseItem }:
         </div>
 
         <div className="flex items-center gap-8">
-          <div className="flex items-center gap-4 bg-white/5 px-6 py-2 rounded-2xl border border-white/10">
-            <div className="p-2 bg-white/5 rounded-full">
-              {React.cloneElement(getEncounterIcon() as React.ReactElement, { className: "w-6 h-6" })}
+          <div className="flex items-center gap-4 bg-white/5 px-6 py-2 rounded-2xl border border-white/10 relative overflow-hidden">
+            {bossAttacking && (
+              <motion.div 
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                className="absolute inset-0 bg-red-500/20 z-0"
+              />
+            )}
+            <div className="p-2 bg-white/5 rounded-full relative z-10">
+              {getEncounterIcon(cn('w-6 h-6', bossAttacking && 'animate-bounce text-red-500'))}
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 relative z-10">
               <div className="text-[9px] font-black text-gray-500 uppercase tracking-widest">{getEncounterTitle()}</div>
               <div className="w-32 h-1.5 bg-white/5 rounded-full overflow-hidden">
                 <motion.div 
                   className="h-full bg-red-600"
-                  animate={{ width: `${(enemyHp / (encounter.enemyMaxHp || 100)) * 100}%` }}
+                  animate={{ width: `${((enemyHp ?? 0) / (encounter.enemyMaxHp || 100)) * 100}%` }}
                 />
               </div>
+              {encounter.type === 'boss' && !isCorrect && (
+                <div className="w-32 h-1 bg-white/10 rounded-full overflow-hidden mt-1">
+                  <motion.div 
+                    className="h-full bg-yellow-500"
+                    initial={{ width: '100%' }}
+                    animate={{ width: `${((timer ?? 0) / (CONFIG.BOSS_TIMER_SECONDS || 1)) * 100}%` }}
+                    transition={{ duration: 0.1, ease: 'linear' }}
+                  />
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="text-right">
-            <div className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-1">Score</div>
-            <div className="text-2xl font-black text-white">{player.score}</div>
-          </div>
         </div>
       </div>
 

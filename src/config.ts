@@ -12,8 +12,15 @@ export const CONFIG = {
   PRICE_CANDY: Number(import.meta.env.VITE_PRICE_CANDY) || 300,
   PRICE_CHOCOLATE: Number(import.meta.env.VITE_PRICE_CHOCOLATE) || 450,
   PRICE_CAKE: Number(import.meta.env.VITE_PRICE_CAKE) || 600,
+  PRICE_ARMOR_PLATE: Number(import.meta.env.VITE_PRICE_ARMOR_PLATE) || 200,
 
   LUCKY_SPIN_COIN_1: Number(import.meta.env.VITE_LUCKY_SPIN_COIN_1) || 70,
   LUCKY_SPIN_COIN_2: Number(import.meta.env.VITE_LUCKY_SPIN_COIN_2) || 100,
   LUCKY_SPIN_COIN_3: Number(import.meta.env.VITE_LUCKY_SPIN_COIN_3) || 130,
+
+  BOSS_TIMER_SECONDS: Number(import.meta.env.VITE_BOSS_TIMER_SECONDS) || 10,
+  BOSS_DAMAGE: Number(import.meta.env.VITE_BOSS_DAMAGE) || 10,
+  STARTING_SHIELD: Number(import.meta.env.VITE_STARTING_SHIELD) || 50,
+  SHIELD_RESTORE_ON_CORRECT: Number(import.meta.env.VITE_SHIELD_RESTORE_ON_CORRECT) || 10,
+  SHIELD_RESTORE_ITEM_VALUE: Number(import.meta.env.VITE_SHIELD_RESTORE_ITEM_VALUE) || 50,
 };
