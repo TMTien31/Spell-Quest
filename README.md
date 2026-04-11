@@ -46,3 +46,14 @@ pytest -q
 
 - Chi tiet frontend: `frontend/README.md`
 - Chi tiet backend: `backend/README.md`
+
+## Deploy Frontend Len Vercel (UI only)
+
+Workspace da co san config de Vercel chi build frontend:
+
+- `vercel.json`: build output tu `frontend/dist`
+- `.vercelignore`: bo qua `backend/` khi upload
+
+Khi tao project tren Vercel, ban co the de root la repository root. Vercel se dung config tren va deploy UI.
+
+Neu chua can backend production, giu backend local de phat trien tiep va tach deploy sau (Railway/Render/Fly.io hoac Vercel Functions o giai doan tiep theo).
