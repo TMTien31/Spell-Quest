@@ -1,8 +1,8 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import { Reward } from '../types';
-import { CONFIG } from '../config';
+import { Reward } from '../models/types';
+import { CONFIG, ENV_CONFIG } from '../config/config';
 
 /**
  * Utility for merging tailwind classes.
@@ -59,9 +59,9 @@ export function calculateDifficulty(word: string): 'easy' | 'medium' | 'hard' {
   let score = 0;
 
   // Step 1: Base points from length
-  if (text.length <= 4) score += 0;
-  else if (text.length <= 7) score += 1;
-  else score += 2;
+  if (text.length <= CONFIG.DIFFICULTY_LENGTH_EASY_MAX) score += 0;
+  else if (text.length <= CONFIG.DIFFICULTY_LENGTH_MEDIUM_MAX) score += 1;
+  else score += CONFIG.DIFFICULTY_LENGTH_HARD_BASE_SCORE;
 
   // Step 2: Bonus points for complex patterns
   const patterns = [
@@ -79,8 +79,8 @@ export function calculateDifficulty(word: string): 'easy' | 'medium' | 'hard' {
   });
 
   // Final mapping
-  if (score <= 1) return 'easy';
-  if (score <= 3) return 'medium';
+  if (score <= CONFIG.DIFFICULTY_SCORE_EASY_MAX) return 'easy';
+  if (score <= CONFIG.DIFFICULTY_SCORE_MEDIUM_MAX) return 'medium';
   return 'hard';
 }
 
@@ -159,7 +159,7 @@ export function getWeightedRandom<T extends { weight: number }>(items: T[]): T {
 
 export async function fetchWordInfo(word: string) {
   try {
-    const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+    const response = await fetch(`${ENV_CONFIG.DICTIONARY_API_BASE_URL}/${word}`);
     if (!response.ok) return null;
     const data = await response.json();
     const entry = data[0];
@@ -180,7 +180,7 @@ export async function fetchWordInfo(word: string) {
 
     let vietnameseMeaning = '';
     try {
-      const viRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(word)}`);
+      const viRes = await fetch(`${ENV_CONFIG.TRANSLATE_API_BASE_URL}${encodeURIComponent(word)}`);
       if (viRes.ok) {
         const viData = await viRes.json();
         if (viData && viData[0] && viData[0][0] && viData[0][0][0]) {
@@ -194,7 +194,7 @@ export async function fetchWordInfo(word: string) {
     let detailedVietnameseMeaning = '';
     if (definition) {
       try {
-        const viDefRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(definition)}`);
+        const viDefRes = await fetch(`${ENV_CONFIG.TRANSLATE_API_BASE_URL}${encodeURIComponent(definition)}`);
         if (viDefRes.ok) {
           const viDefData = await viDefRes.json();
           if (viDefData && viDefData[0]) {
@@ -219,11 +219,11 @@ export async function fetchWordInfo(word: string) {
 }
 
 export const REWARD_POOL: Reward[] = [
-  { type: 'coin', label: `${CONFIG.LUCKY_SPIN_COIN_1} Coins`, weight: 50, color: '#EAB308', value: CONFIG.LUCKY_SPIN_COIN_1 },
-  { type: 'coin', label: `${CONFIG.LUCKY_SPIN_COIN_2} Coins`, weight: 25, color: '#FACC15', value: CONFIG.LUCKY_SPIN_COIN_2 },
-  { type: 'coin', label: `${CONFIG.LUCKY_SPIN_COIN_3} Coins`, weight: 10, color: '#FDE047', value: CONFIG.LUCKY_SPIN_COIN_3 },
-  { type: 'hint', label: 'Hint Token', weight: 30, color: '#3B82F6' },
-  { type: 'shield', label: 'Shield', weight: 15, color: '#10B981' },
-  { type: 'reveal_letter', label: 'Reveal Letter', weight: 10, color: '#F97316' },
-  { type: 'armor_plate', label: 'Armor Plate', weight: 15, color: '#8B5CF6' },
+  { type: 'coin', label: `${CONFIG.LUCKY_SPIN_COIN_1} Coins`, weight: CONFIG.LUCKY_SPIN_WEIGHT_COIN_1, color: '#EAB308', value: CONFIG.LUCKY_SPIN_COIN_1 },
+  { type: 'coin', label: `${CONFIG.LUCKY_SPIN_COIN_2} Coins`, weight: CONFIG.LUCKY_SPIN_WEIGHT_COIN_2, color: '#FACC15', value: CONFIG.LUCKY_SPIN_COIN_2 },
+  { type: 'coin', label: `${CONFIG.LUCKY_SPIN_COIN_3} Coins`, weight: CONFIG.LUCKY_SPIN_WEIGHT_COIN_3, color: '#FDE047', value: CONFIG.LUCKY_SPIN_COIN_3 },
+  { type: 'hint', label: 'Hint Token', weight: CONFIG.LUCKY_SPIN_WEIGHT_HINT, color: '#3B82F6' },
+  { type: 'shield', label: 'Shield', weight: CONFIG.LUCKY_SPIN_WEIGHT_SHIELD, color: '#10B981' },
+  { type: 'reveal_letter', label: 'Reveal Letter', weight: CONFIG.LUCKY_SPIN_WEIGHT_REVEAL_LETTER, color: '#F97316' },
+  { type: 'armor_plate', label: 'Armor Plate', weight: CONFIG.LUCKY_SPIN_WEIGHT_ARMOR_PLATE, color: '#8B5CF6' },
 ];

@@ -1,0 +1,88 @@
+{
+  "player": {
+    "startingHp": 100,
+    "startingShield": 50,
+    "startingCoins": 0,
+    "startingInventory": {
+      "hint": 3,
+      "shield": 1,
+      "revealLetter": 1,
+      "armorPlate": 1
+    }
+  },
+  "combat": {
+    "deductedHpOnLoss": 20,
+    "maxFailedAttempts": 3,
+    "closeMatchDistance": 2,
+    "wordTransitionDelayMs": 1000,
+    "successDamageDealtStat": 100,
+    "gate": {
+      "hp": 200,
+      "hitsRequired": 2,
+      "hitsDisplay": 2
+    },
+    "boss": {
+      "hp": 400,
+      "hitsRequired": 4,
+      "timerSeconds": 10,
+      "damage": 10,
+      "timerTickStep": 0.1,
+      "timerTickMs": 100,
+      "attackFlashMs": 500
+    },
+    "shield": {
+      "restoreOnCorrect": 10,
+      "restoreItemValue": 50
+    }
+  },
+  "progression": {
+    "coinsPerEncounter": 20,
+    "coinsOnCompletion": 100,
+    "levelEncounterCounts": [3, 4, 5],
+    "levelWordDifficultySplit": {
+      "level1EasyCount": 2,
+      "level2MediumCount": 2
+    },
+    "minUniquePoolBeforeReuse": 15
+  },
+  "shopPrices": {
+    "hint": 50,
+    "shield": 100,
+    "revealLetter": 150,
+    "luckySpin": 100,
+    "candy": 300,
+    "chocolate": 450,
+    "cake": 600,
+    "armorPlate": 200
+  },
+  "luckySpin": {
+    "coinRewards": {
+      "tier1": 70,
+      "tier2": 100,
+      "tier3": 130
+    },
+    "weights": {
+      "coinTier1": 50,
+      "coinTier2": 25,
+      "coinTier3": 10,
+      "hint": 30,
+      "shield": 15,
+      "revealLetter": 10,
+      "armorPlate": 15
+    },
+    "lifeRestoreValue": 25,
+    "extraSpinsBase": 5,
+    "extraSpinsRandomRange": 5,
+    "confettiWeightThreshold": 20
+  },
+  "difficulty": {
+    "lengthEasyMax": 4,
+    "lengthMediumMax": 7,
+    "lengthHardBaseScore": 2,
+    "scoreEasyMax": 1,
+    "scoreMediumMax": 3
+  },
+  "items": {
+    "defaultGrantCount": 1
+  }
+}

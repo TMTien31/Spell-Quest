@@ -1,19 +1,28 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
-import { Trophy, Zap, Coins, Heart, Shield, HelpCircle } from 'lucide-react';
-import { Reward } from '../types';
-import { cn, getWeightedRandom } from '../lib/utils';
+import { Trophy, Zap, Coins, Heart, Shield, HelpCircle, AlertCircle } from 'lucide-react';
+import { Reward } from '../../models/types';
+import { cn, getWeightedRandom } from '../../utils/gameUtils';
+import { CONFIG } from '../../config/config';
 
 interface LuckyWheelProps {
   rewards: Reward[];
+  coins: number;
+  spinPrice: number;
+  onSpin: () => void; // Called when player clicks spin (App handles coin deduction)
   onComplete: (reward: Reward) => void;
+  onExit: () => void;
+  onInsufficientFunds: (message: string) => void;
 }
 
-export default function LuckyWheel({ rewards, onComplete }: LuckyWheelProps) {
+export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComplete, onExit, onInsufficientFunds }: LuckyWheelProps) {
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<Reward | null>(null);
+
+  const hasPendingReward = result !== null;
+  const canSpin = coins >= spinPrice && !isSpinning && !hasPendingReward;
 
   // Calculate segments based on weights
   const totalWeight = rewards.reduce((sum, r) => sum + (r.weight || 1), 0);
@@ -25,30 +34,44 @@ export default function LuckyWheel({ rewards, onComplete }: LuckyWheelProps) {
     return { ...reward, startAngle, angle };
   });
 
-  const spin = () => {
-    if (isSpinning) return;
-    
+  const handleSpinClick = () => {
+    if (isSpinning || hasPendingReward) return;
+
+    if (coins < spinPrice) {
+      onInsufficientFunds("You don't have enough coins to spin!");
+      return;
+    }
+
+    onSpin();
+    startSpin();
+  };
+
+  const handleClaimReward = () => {
+    if (!result) return;
+    onComplete(result);
+    setResult(null);
+  };
+
+  const startSpin = () => {
     setIsSpinning(true);
     setResult(null);
-    
+
     const finalReward = getWeightedRandom(rewards);
     const rewardIndex = rewards.findIndex(r => r === finalReward);
     const segment = segments[rewardIndex];
-    
-    const extraSpins = 5 + Math.floor(Math.random() * 5);
-    // Target angle is the middle of the segment
-    // We need to subtract from 360 because rotation is clockwise but angles are counter-clockwise from top
+
+    const extraSpins = CONFIG.LUCKY_SPIN_EXTRA_SPINS_BASE + Math.floor(Math.random() * CONFIG.LUCKY_SPIN_EXTRA_SPINS_RANDOM_RANGE);
     const segmentCenter = segment.startAngle + (segment.angle / 2);
     const targetDegree = 360 - segmentCenter;
-    
+
     const totalRotation = rotation + (extraSpins * 360) + (targetDegree - (rotation % 360));
     setRotation(totalRotation);
 
     setTimeout(() => {
       setIsSpinning(false);
       setResult(finalReward);
-      
-      if (finalReward.weight && finalReward.weight < 20) {
+
+      if (finalReward.weight && finalReward.weight < CONFIG.LUCKY_SPIN_CONFETTI_WEIGHT_THRESHOLD) {
         confetti({
           particleCount: 150,
           spread: 70,
@@ -56,8 +79,6 @@ export default function LuckyWheel({ rewards, onComplete }: LuckyWheelProps) {
           colors: [finalReward.color, '#FFFFFF']
         });
       }
-      
-      setTimeout(() => onComplete(finalReward), 2500);
     }, 4000);
   };
 
@@ -102,10 +123,17 @@ export default function LuckyWheel({ rewards, onComplete }: LuckyWheelProps) {
         <p className="text-gray-500 text-xs font-bold uppercase tracking-[0.3em]">Fortune favors the bold</p>
       </div>
 
+      {/* Coin Display */}
+      <div className="flex items-center gap-2 bg-yellow-500/20 px-4 py-2 rounded-full border border-yellow-500/30">
+        <Coins className="w-5 h-5 text-yellow-500" />
+        <span className="text-yellow-500 font-black">{coins}</span>
+        <span className="text-yellow-500/70 text-sm">coins</span>
+      </div>
+
       <div className="relative w-80 h-80">
         {/* Outer Glow */}
         <div className="absolute inset-0 rounded-full bg-yellow-500/10 blur-3xl animate-pulse" />
-        
+
         {/* Pointer */}
         <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-30 drop-shadow-2xl">
           <div className="w-10 h-10 bg-white rotate-45 rounded-lg flex items-center justify-center">
@@ -114,7 +142,7 @@ export default function LuckyWheel({ rewards, onComplete }: LuckyWheelProps) {
         </div>
 
         {/* Wheel Container */}
-        <motion.div 
+        <motion.div
           className="w-full h-full rounded-full border-[12px] border-[#1F1F29] relative shadow-2xl overflow-hidden"
           animate={{ rotate: rotation }}
           transition={{ duration: 4, ease: [0.15, 0, 0.15, 1] }}
@@ -144,14 +172,14 @@ export default function LuckyWheel({ rewards, onComplete }: LuckyWheelProps) {
             ))}
           </svg>
         </motion.div>
-        
+
         {/* Center Button */}
-        <button 
-          onClick={spin}
-          disabled={isSpinning}
+        <button
+          onClick={handleSpinClick}
+          disabled={!canSpin}
           className={cn(
             "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-[#16161D] border-8 border-[#1F1F29] z-20 flex items-center justify-center shadow-2xl transition-all group",
-            isSpinning ? "opacity-50 cursor-not-allowed" : "hover:scale-110 active:scale-95"
+            !canSpin ? "opacity-50 cursor-not-allowed" : "hover:scale-110 active:scale-95"
           )}
         >
           <div className="text-[12px] font-black text-white uppercase tracking-widest group-hover:text-yellow-400 transition-colors">SPIN</div>
@@ -163,13 +191,38 @@ export default function LuckyWheel({ rewards, onComplete }: LuckyWheelProps) {
           <motion.div
             initial={{ opacity: 0, scale: 0.5, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="text-center space-y-1"
+            className="text-center space-y-3"
           >
             <div className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em]">Reward Unlocked</div>
             <div className="text-3xl font-black text-white uppercase tracking-tighter italic">{result.label}</div>
+            <button
+              onClick={handleClaimReward}
+              className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-xl transition-all"
+            >
+              CLAIM REWARD
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Spin Cost */}
+      <div className="text-center">
+        <p className="text-gray-500 text-xs">
+          Spin cost: <span className="text-yellow-500 font-bold">{spinPrice}</span> coins
+        </p>
+      </div>
+
+      {/* Exit Button */}
+      <button
+        onClick={onExit}
+        disabled={isSpinning || hasPendingReward}
+        className={cn(
+          "px-6 py-2 bg-white/10 hover:bg-white/20 text-gray-400 font-bold rounded-xl border border-white/10 transition-all",
+          (isSpinning || hasPendingReward) && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        EXIT
+      </button>
     </div>
   );
 }

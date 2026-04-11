@@ -30,13 +30,16 @@ import {
   Star,
   Cookie,
   Coffee,
-  IceCream
+  IceCream,
+  AlertCircle
 } from 'lucide-react';
-import { cn, speak, countSyllables, levenshteinDistance, calculateDifficulty, getWeightedRandom, REWARD_POOL } from './lib/utils';
-import { Word, PlayerState, Level, Encounter, Reward, InventoryItem } from './types';
-import { INITIAL_WORDS } from './words';
-import { CONFIG } from './config';
-import { TOPICS, Topic } from './topics';
+import { cn, speak, countSyllables, levenshteinDistance, calculateDifficulty, getWeightedRandom, REWARD_POOL } from '../utils/gameUtils';
+import { Word, PlayerState, Level, Encounter, Reward, InventoryItem } from '../models/types';
+import { INITIAL_WORDS } from '../models/words';
+import { CONFIG } from '../config/config';
+import { TOPICS, Topic } from '../models/topics';
+import { createInitialPlayer } from '../controllers/playerController';
+import { generateLevels } from '../controllers/levelController';
 import LuckyWheel from './components/LuckyWheel';
 import AdventureMap from './components/AdventureMap';
 import CombatView from './components/CombatView';
@@ -44,127 +47,9 @@ import CombatView from './components/CombatView';
 type GameScreen = 'landing' | 'login' | 'signup' | 'mode_select' | 'topic_select' | 'map' | 'combat' | 'spin' | 'words' | 'shop' | 'gameover';
 type GameMode = 'sandbox' | 'adventure';
 
-const INITIAL_PLAYER: PlayerState = {
-  hp: CONFIG.STARTING_HP,
-  maxHp: CONFIG.STARTING_HP,
-  shield: CONFIG.STARTING_SHIELD,
-  maxShield: CONFIG.STARTING_SHIELD,
-  coins: CONFIG.STARTING_COINS,
-  streak: 0,
-  level: 0,
-  experience: 0,
-  inventory: [
-    { type: 'hint', count: 3 },
-    { type: 'shield', count: 1 },
-    { type: 'reveal_letter', count: 1 },
-    { type: 'armor_plate', count: 1 }
-  ],
-  usedWordIds: []
-};
+const INITIAL_PLAYER: PlayerState = createInitialPlayer();
 
 export default function App() {
-  // --- Helpers ---
-  const generateLevels = (currentWords: Word[], usedWordsList: string[]) => {
-    console.log('Generating levels with used words:', usedWordsList);
-    const pool = currentWords.length > 0 ? currentWords : INITIAL_WORDS;
-
-    // Filter out used words
-    const availablePool = pool.filter(w => !usedWordsList.includes(w.text.toLowerCase()));
-    console.log(`Available words: ${availablePool.length}/${pool.length}`);
-    
-    // If we run out of words, we might need to reuse or alert, but for now let's fallback to pool
-    const finalPool = availablePool.length > 0 ? availablePool : pool;
-
-    let currentFinalPool = [...finalPool];
-
-    const getRandomWord = (difficulty?: 'easy' | 'medium' | 'hard') => {
-      const filtered = difficulty ? currentFinalPool.filter((w: any) => w.difficulty === difficulty) : currentFinalPool;
-      const source = filtered.length > 0 ? filtered : currentFinalPool;
-      
-      if (source.length === 0) {
-        // Fallback to pool if we somehow run out completely
-        return pool[Math.floor(Math.random() * pool.length)];
-      }
-
-      const randomIndex = Math.floor(Math.random() * source.length);
-      const selectedWord = source[randomIndex];
-      
-      // Remove the selected word from the pool to avoid duplicates in the same generation
-      currentFinalPool = currentFinalPool.filter(w => w.id !== selectedWord.id);
-      
-      return selectedWord;
-    };
-
-    return [
-      {
-        id: 1,
-        name: 'Whispering Woods',
-        theme: 'forest' as const,
-        completed: false,
-        encounters: Array.from({ length: 5 }, (_, i) => ({
-          id: `l1-e${i}`,
-          type: i % 3 === 0 ? 'gate' as const : i % 3 === 1 ? 'enemy' as const : 'treasure' as const,
-          word: getRandomWord(i < 3 ? 'easy' : 'medium'),
-          enemyHp: 100,
-          enemyMaxHp: 100,
-          completed: false
-        })),
-        boss: {
-          id: 'l1-boss',
-          type: 'boss' as const,
-          word: getRandomWord('hard'),
-          enemyHp: 300,
-          enemyMaxHp: 300,
-          completed: false
-        }
-      },
-      {
-        id: 2,
-        name: 'Crystal Caverns',
-        theme: 'cave' as const,
-        completed: false,
-        encounters: Array.from({ length: 7 }, (_, i) => ({
-          id: `l2-e${i}`,
-          type: i % 3 === 0 ? 'gate' as const : i % 3 === 1 ? 'enemy' as const : 'treasure' as const,
-          word: getRandomWord(i < 4 ? 'medium' : 'hard'),
-          enemyHp: 150,
-          enemyMaxHp: 150,
-          completed: false
-        })),
-        boss: {
-          id: 'l2-boss',
-          type: 'boss' as const,
-          word: getRandomWord('hard'),
-          enemyHp: 500,
-          enemyMaxHp: 500,
-          completed: false
-        }
-      },
-      {
-        id: 3,
-        name: 'Dragon Peak',
-        theme: 'castle' as const,
-        completed: false,
-        encounters: Array.from({ length: 9 }, (_, i) => ({
-          id: `l3-e${i}`,
-          type: i % 3 === 0 ? 'gate' as const : i % 3 === 1 ? 'enemy' as const : 'treasure' as const,
-          word: getRandomWord('hard'),
-          enemyHp: 200,
-          enemyMaxHp: 200,
-          completed: false
-        })),
-        boss: {
-          id: 'l3-boss',
-          type: 'boss' as const,
-          word: getRandomWord('hard'),
-          enemyHp: 800,
-          enemyMaxHp: 800,
-          completed: false
-        }
-      }
-    ];
-  };
-
   // --- State ---
   const [screen, setScreen] = useState<GameScreen>('landing');
   const [gameMode, setGameMode] = useState<GameMode>('sandbox');
@@ -234,6 +119,7 @@ export default function App() {
   const [showCongrats, setShowCongrats] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
+  const [globalMessage, setGlobalMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   // --- Persistence ---
   useEffect(() => {
@@ -255,7 +141,7 @@ export default function App() {
     setLevels(prevLevels => {
       let hasChanges = false;
       let currentFinalPool = words.filter(w => !usedWords.includes(w.id));
-      if (currentFinalPool.length < 15) {
+      if (currentFinalPool.length < CONFIG.MIN_UNIQUE_POOL_BEFORE_REUSE) {
         currentFinalPool = [...words];
       }
       
@@ -271,21 +157,31 @@ export default function App() {
 
       const updatedLevels = prevLevels.map((level, i) => {
         if (level.completed) return level;
-        
+
         const newEncounters = level.encounters.map((enc, j) => {
           // Do not update completed encounters or the currently active encounter if in combat
           if (enc.completed || (i === currentLevelIndex && j === currentEncounterIndex && screen === 'combat')) return enc;
-          
+
           hasChanges = true;
-          return { ...enc, word: getRandomWord(enc.type === 'boss' ? 'hard' : undefined) };
+          return {
+            ...enc,
+            word: getRandomWord(enc.type === 'boss' ? 'hard' : undefined),
+            hitsRequired: enc.type === 'boss' ? CONFIG.BOSS_HITS_REQUIRED : CONFIG.GATE_HITS_REQUIRED,
+            hitsRemaining: enc.type === 'boss' ? CONFIG.BOSS_HITS_REQUIRED : CONFIG.GATE_HITS_REQUIRED
+          };
         });
-        
+
         let newBoss = level.boss;
         if (!level.boss.completed && !(i === currentLevelIndex && level.encounters.every(e => e.completed) && screen === 'combat')) {
           hasChanges = true;
-          newBoss = { ...level.boss, word: getRandomWord('hard') };
+          newBoss = {
+            ...level.boss,
+            word: getRandomWord('hard'),
+            hitsRequired: CONFIG.BOSS_HITS_REQUIRED,
+            hitsRemaining: CONFIG.BOSS_HITS_REQUIRED
+          };
         }
-        
+
         return { ...level, encounters: newEncounters, boss: newBoss };
       });
       
@@ -356,7 +252,35 @@ export default function App() {
   };
 
   const handleEncounterSelect = (encounter: Encounter) => {
-    setActiveEncounter(encounter);
+    // Check if re-entering a gate that was just failed - if so, generate new word
+    let encounterToUse = encounter;
+    if (encounter.type === 'gate' && encounter.hitsRemaining !== undefined && encounter.hitsRemaining < (encounter.hitsRequired ?? 1)) {
+      // This gate was failed, need a new word
+      const newWord = handleRequestNewWord(encounter.word, []);
+
+      // Reset hitsRemaining to full and use new word
+      encounterToUse = {
+        ...encounter,
+        word: newWord,
+        hitsRemaining: encounter.hitsRequired ?? CONFIG.GATE_HITS_REQUIRED
+      };
+
+      // Update the level with the new encounter (using functional update to ensure correct state)
+      setLevels(prevLevels => {
+        const newLevels = prevLevels.map((level, idx) => {
+          if (idx !== currentLevelIndex) return level;
+          return {
+            ...level,
+            encounters: level.encounters.map(e =>
+              e.id === encounter.id ? encounterToUse : e
+            )
+          };
+        });
+        return newLevels;
+      });
+    }
+
+    setActiveEncounter(encounterToUse);
     setScreen('combat');
   };
 
@@ -488,27 +412,30 @@ export default function App() {
       if (reward.type === 'coin') {
         return { ...prev, coins: prev.coins + (reward.value || 0) };
       } else if (reward.type === 'life') {
-        return { ...prev, hp: Math.min(prev.maxHp, prev.hp + 25) };
+        return { ...prev, hp: Math.min(prev.maxHp, prev.hp + CONFIG.LUCKY_SPIN_LIFE_RESTORE_VALUE) };
       } else {
         const itemIdx = newInventory.findIndex(i => i.type === reward.type);
         if (itemIdx !== -1) {
           newInventory[itemIdx].count += 1;
         } else {
-          newInventory.push({ type: reward.type as any, count: 1 });
+          newInventory.push({ type: reward.type as any, count: CONFIG.DEFAULT_ITEM_GRANT_COUNT });
         }
         return { ...prev, inventory: newInventory };
       }
     });
+    // Don't auto-return to map - let player spin again if they want
+  };
 
+  const handleSpinExit = () => {
     setScreen('map');
   };
 
   const handleUseItem = useCallback((itemType: InventoryItem['type']) => {
     setPlayer(prev => {
-      const newInventory = prev.inventory.map(item => 
+      const newInventory = prev.inventory.map(item =>
         item.type === itemType ? { ...item, count: item.count - 1 } : item
       );
-      
+
       let newShield = prev.shield ?? 0;
       if (itemType === 'armor_plate') {
         newShield = Math.min(prev.maxShield ?? CONFIG.STARTING_SHIELD, (prev.shield ?? 0) + CONFIG.SHIELD_RESTORE_ITEM_VALUE);
@@ -518,6 +445,75 @@ export default function App() {
     });
     // Logic for item effects would go here or in CombatView
   }, []);
+
+  // Called when a word is successfully spelled - adds to used words list
+  const handleWordCompleted = useCallback((wordText: string) => {
+    setUsedWords(prev => {
+      const newUsedWords = [...new Set([...prev, wordText.toLowerCase()])];
+      console.log('Used words updated:', newUsedWords);
+      return newUsedWords;
+    });
+  }, []);
+
+  // Request a new word for an ongoing encounter (when a hit is landed but encounter not yet defeated)
+  const handleRequestNewWord = useCallback((currentWord: Word, sessionUsedWords: string[] = []): Word => {
+    // Filter out used words (both global and session) and current word
+    const pool = words.filter(w =>
+      !usedWords.includes(w.text.toLowerCase()) &&
+      !sessionUsedWords.includes(w.text.toLowerCase()) &&
+      w.text.toLowerCase() !== currentWord.text.toLowerCase()
+    );
+
+    const source = pool.length > 0 ? pool : words;
+    const randomIndex = Math.floor(Math.random() * source.length);
+    return source[randomIndex];
+  }, [words, usedWords]);
+
+  // Handle when player fails a gate (3 wrong attempts) - called from modal button
+  const handleGateFailed = useCallback(() => {
+    // Add the current word to used words
+    if (activeEncounter?.word) {
+      const wordLower = activeEncounter.word.text.toLowerCase();
+      setUsedWords(prev => {
+        const newUsedWords = [...new Set([...prev, wordLower])];
+        return newUsedWords;
+      });
+    }
+
+    // Reset the failed gate so re-entering starts from a fresh state.
+    if (activeEncounter?.type === 'gate') {
+      const replacementWord = handleRequestNewWord(activeEncounter.word, []);
+      setLevels(prevLevels => prevLevels.map((level, levelIndex) => {
+        if (levelIndex !== currentLevelIndex) return level;
+
+        return {
+          ...level,
+          encounters: level.encounters.map(encounter => {
+            if (encounter.id !== activeEncounter.id) return encounter;
+
+            const hitsRequired = encounter.hitsRequired ?? CONFIG.GATE_HITS_REQUIRED;
+            return {
+              ...encounter,
+              completed: false,
+              word: replacementWord,
+              hitsRequired,
+              hitsRemaining: hitsRequired
+            };
+          })
+        };
+      }));
+    }
+
+    // Keep existing HP/shield; only streak is reset when a gate is failed.
+    setPlayer(prev => ({
+      ...prev,
+      streak: 0
+    }));
+
+    // Return to map immediately (player clicked the button)
+    setScreen(player.hp <= 0 ? 'gameover' : 'map');
+    setActiveEncounter(null);
+  }, [activeEncounter, currentLevelIndex, handleRequestNewWord, player.hp]);
 
   const startAdventureMode = (topic: Topic) => {
     setGameMode('adventure');
@@ -563,7 +559,7 @@ export default function App() {
     const wordsToUse = newWords || words;
     const currentWords = wordsToUse.length > 0 ? wordsToUse : INITIAL_WORDS;
     const newLevels = generateLevels(currentWords, usedWords);
-    
+
     // Completely reset the current level's progress and regenerate its words
     const updatedLevels = levels.map((l, i) => {
       if (i === currentLevelIndex) {
@@ -576,7 +572,7 @@ export default function App() {
       }
       return l;
     });
-    
+
     setLevels(updatedLevels);
     localStorage.setItem('spellbound_levels', JSON.stringify(updatedLevels));
     localStorage.setItem('spellbound_current_encounter', '0');
@@ -773,33 +769,41 @@ export default function App() {
           )}
 
           {screen === 'combat' && activeEncounter && (
-            <motion.div 
+            <motion.div
               key="combat"
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -50 }}
             >
-              <CombatView 
+              <CombatView
                 encounter={activeEncounter}
                 player={player}
                 onComplete={handleCombatComplete}
                 onUseItem={handleUseItem}
                 onDamage={handleCombatDamage}
+                onWordCompleted={handleWordCompleted}
+                onRequestNewWord={handleRequestNewWord}
+                onGateFailed={handleGateFailed}
               />
             </motion.div>
           )}
 
           {screen === 'spin' && (
-            <motion.div 
+            <motion.div
               key="spin"
               initial={{ opacity: 0, rotate: -180, scale: 0 }}
               animate={{ opacity: 1, rotate: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 2 }}
               className="py-12"
             >
-              <LuckyWheel 
+              <LuckyWheel
                 rewards={REWARD_POOL}
+                coins={player.coins}
+                spinPrice={CONFIG.PRICE_LUCKY_SPIN}
+                onSpin={() => setPlayer(prev => ({ ...prev, coins: prev.coins - CONFIG.PRICE_LUCKY_SPIN }))}
                 onComplete={handleSpinComplete}
+                onExit={handleSpinExit}
+                onInsufficientFunds={(msg) => setGlobalMessage({ text: msg, type: 'error' })}
               />
             </motion.div>
           )}
@@ -944,14 +948,13 @@ export default function App() {
                       onClick={() => {
                         if (player.coins >= item.price) {
                           if (item.type === 'lucky_spin') {
-                            setPlayer(prev => ({ ...prev, coins: prev.coins - item.price }));
                             setScreen('spin');
                           } else {
                             setPlayer(prev => {
                               const newInventory = [...prev.inventory];
                               const idx = newInventory.findIndex(i => i.type === item.type);
                               if (idx !== -1) newInventory[idx].count += 1;
-                              else newInventory.push({ type: item.type as any, count: 1 });
+                              else newInventory.push({ type: item.type as any, count: CONFIG.DEFAULT_ITEM_GRANT_COUNT });
                               return { ...prev, coins: prev.coins - item.price, inventory: newInventory };
                             });
                           }
@@ -1075,6 +1078,56 @@ export default function App() {
               </motion.div>
             </motion.div>
           )}
+          {/* Global Message Modal (Reusable) */}
+          <AnimatePresence>
+            {globalMessage && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                onClick={() => setGlobalMessage(null)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, y: 20 }}
+                  animate={{ scale: 1, y: 0 }}
+                  exit={{ scale: 0.9, y: 20 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(
+                    "bg-[#16161D] border p-8 rounded-[32px] max-w-md w-full text-center space-y-6",
+                    globalMessage.type === 'error' ? "border-red-500/50" :
+                    globalMessage.type === 'success' ? "border-green-500/50" :
+                    "border-blue-500/50"
+                  )}
+                >
+                  <div className={cn(
+                    "w-16 h-16 rounded-full flex items-center justify-center mx-auto",
+                    globalMessage.type === 'error' ? "bg-red-500/20" :
+                    globalMessage.type === 'success' ? "bg-green-500/20" :
+                    "bg-blue-500/20"
+                  )}>
+                    {globalMessage.type === 'error' && <AlertCircle className="w-8 h-8 text-red-500" />}
+                    {globalMessage.type === 'success' && <Trophy className="w-8 h-8 text-green-500" />}
+                    {globalMessage.type === 'info' && <Shield className="w-8 h-8 text-blue-500" />}
+                  </div>
+                  <p className={cn(
+                    "text-xl font-bold",
+                    globalMessage.type === 'error' ? "text-red-500" :
+                    globalMessage.type === 'success' ? "text-green-500" :
+                    "text-blue-500"
+                  )}>
+                    {globalMessage.text}
+                  </p>
+                  <button
+                    onClick={() => setGlobalMessage(null)}
+                    className="px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/10 transition-all"
+                  >
+                    OK
+                  </button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           {/* Import Modal */}
           {showImportModal && (
             <motion.div

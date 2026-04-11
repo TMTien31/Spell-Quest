@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { MapPin, Lock, Trophy, Skull, Swords, DoorClosed, Gift, RotateCcw } from 'lucide-react';
-import { Level, Encounter } from '../types';
-import { cn } from '../lib/utils';
+import { Level, Encounter } from '../../models/types';
+import { cn } from '../../utils/gameUtils';
 
 interface AdventureMapProps {
   levels: Level[];

@@ -38,6 +38,8 @@ export interface Encounter {
   enemyHp?: number;
   enemyMaxHp?: number;
   completed: boolean;
+  hitsRequired?: number; // Number of correct words needed to pass (for gates: 2, for boss: 4)
+  hitsRemaining?: number; // Hits remaining to complete encounter
 }
 
 export interface Level {
