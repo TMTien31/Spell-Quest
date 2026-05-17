@@ -330,239 +330,281 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     }
   };
 
+  const hasStatusEffects = isShielded || (player.streak ?? 0) > 0 || attempts > 0 || (encounter.type === 'boss' && !isEncounterCompleted);
+  const isSubmittedWordCorrect = userInput.join('').toLowerCase() === currentWord.text.toLowerCase();
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Top HUD */}
-      <div className="flex justify-between items-center bg-[#16161D] p-4 rounded-3xl border border-white/5 shadow-xl">
-        <div className="flex items-center gap-6">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-              <div className="w-32 h-2 bg-white/5 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-red-500"
-                  animate={{ width: `${((player.hp ?? 0) / (player.maxHp || 1)) * 100}%` }}
-                />
-              </div>
-            </div>
-            <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Player HP: {player.hp ?? 0}</div>
-          </div>
+    <div className="mx-auto max-w-3xl overflow-hidden rounded-[24px] bg-[#0f0e1a] pb-4 shadow-2xl shadow-black/30">
+      {message?.type === 'success' && (
+        <div key={message.text} className="success-flash pointer-events-none fixed inset-0 z-50 bg-[rgba(34,197,94,0.08)]" />
+      )}
 
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-blue-400 fill-blue-400" />
-              <div className="w-32 h-2 bg-white/5 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-blue-400"
-                  animate={{ width: `${((player.shield ?? 0) / (player.maxShield || 1)) * 100}%` }}
-                />
-              </div>
-            </div>
-            <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Shield: {player.shield ?? 0}</div>
-          </div>
-
-          <div className="h-8 w-px bg-white/10" />
-
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-1 text-yellow-500">
-              <Zap className="w-4 h-4 fill-yellow-500" />
-              <span className="text-lg font-black">{player.streak ?? 0}</span>
-            </div>
-            <div className="text-[8px] font-black text-gray-500 uppercase tracking-widest">Streak</div>
-          </div>
-
-          <div className="h-8 w-px bg-white/10" />
-
-          <div className="flex gap-3 relative">
-            {player.inventory.map(item => (
-              <div key={item.type} className="relative group">
-                <button
-                  onClick={() => item.count > 0 && handleUseItemInternal(item.type)}
-                  onMouseEnter={() => setHoveredItem(item.type)}
-                  onMouseLeave={() => setHoveredItem(null)}
-                  disabled={item.count === 0}
-                  className={cn(
-                    "relative p-2 rounded-xl border transition-all",
-                    item.count > 0 ? "bg-white/5 border-white/10 hover:bg-white/10" : "opacity-20 grayscale",
-                    item.type === 'shield' && isShielded && "border-green-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
-                  )}
-                >
-                  {item.type === 'hint' && <HelpCircle className="w-4 h-4 text-blue-400" />}
-                  {item.type === 'shield' && <Shield className="w-4 h-4 text-green-400" />}
-                  {item.type === 'reveal_letter' && <Zap className="w-4 h-4 text-yellow-400" />}
-                  {item.type === 'armor_plate' && <Shield className="w-4 h-4 text-purple-400" />}
-                  <span className="absolute -top-2 -right-2 bg-white text-black text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center">
-                    {item.count}
-                  </span>
-                </button>
-
-                {hoveredItem === item.type && (
-                  <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-32 p-2 bg-black border border-white/10 rounded-lg text-[10px] text-gray-400 z-50 pointer-events-none shadow-2xl">
-                    <div className="font-black text-white uppercase mb-1">
-                      {item.type.replace('_', ' ')}
-                    </div>
-                    {item.type === 'hint' && "Reveals one random letter of the word."}
-                    {item.type === 'shield' && "Blocks the next incoming attack completely."}
-                    {item.type === 'reveal_letter' && "Reveals two random letters instantly."}
-                    {item.type === 'armor_plate' && "Restores a portion of your shield."}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-4 bg-white/5 px-6 py-2 rounded-2xl border border-white/10 relative overflow-hidden">
-            {bossAttacking && (
+      {/* ZONE 1 - HUD */}
+      <div className="bg-[#1a1830] px-[10px] py-3">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="min-w-0">
+            <div className="text-[9px] font-bold uppercase text-slate-500">HP</div>
+            <div className="text-[10px] font-bold text-[#ef4444]">{player.hp ?? 0}</div>
+            <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[#2a2845]">
               <motion.div
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                className="absolute inset-0 bg-red-500/20 z-0"
+                className="h-full rounded-[3px] bg-[#ef4444]"
+                animate={{ width: `${((player.hp ?? 0) / (player.maxHp || 1)) * 100}%` }}
               />
-            )}
-            <div className="p-2 bg-white/5 rounded-full relative z-10">
-              {getEncounterIcon(cn('w-6 h-6', bossAttacking && 'animate-bounce text-red-500'))}
-            </div>
-            <div className="space-y-1 relative z-10">
-              <div className="text-[9px] font-black text-gray-500 uppercase tracking-widest">{getEncounterTitle()}</div>
-              <div className="w-32 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-red-600"
-                  animate={{ width: `${hpBarWidth}%` }}
-                />
-              </div>
-              <div className="text-[10px] font-bold text-gray-400 mt-1">
-                {hitsRemaining}/{hitsRequired} hits remaining
-              </div>
-              {encounter.type === 'boss' && !isEncounterCompleted && (
-                <div className="w-32 h-1 bg-white/10 rounded-full overflow-hidden mt-1">
-                  <motion.div
-                    className="h-full bg-yellow-500"
-                    initial={{ width: '100%' }}
-                    animate={{ width: `${((timer ?? 0) / (CONFIG.BOSS_TIMER_SECONDS || 1)) * 100}%` }}
-                    transition={{ duration: 0.1, ease: 'linear' }}
-                  />
-                </div>
-              )}
             </div>
           </div>
 
+          <div className="min-w-0">
+            <div className="text-[9px] font-bold uppercase text-slate-500">SHIELD</div>
+            <div className="text-[10px] font-bold text-[#3b82f6]">{player.shield ?? 0}</div>
+            <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[#2a2845]">
+              <motion.div
+                className="h-full rounded-[3px] bg-[#3b82f6]"
+                animate={{ width: `${((player.shield ?? 0) / (player.maxShield || 1)) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="text-[9px] font-bold uppercase text-slate-500">STREAK</div>
+            <div className="text-[10px] font-bold text-[#F59E0B]">🔥×{player.streak ?? 0}</div>
+            <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[#2a2845]">
+              <motion.div
+                className="h-full rounded-[3px] bg-[#F59E0B]"
+                animate={{ width: `${(Math.min(player.streak ?? 0, 10) / 10) * 100}%` }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Main Game Area */}
-      <div className="w-full">
-        <motion.div
-          className={cn(
-            "bg-[#16161D] p-12 rounded-[48px] border border-white/5 text-center space-y-10 relative overflow-hidden shadow-2xl",
-            shake && "animate-shake"
-          )}
-        >
-          <div className="flex justify-center gap-12">
-            <div className="flex flex-col items-center gap-3">
-              <button
-                onClick={() => speak(currentWord.text)}
-                className="w-20 h-20 bg-blue-500/10 text-blue-400 rounded-full flex items-center justify-center border border-blue-500/20 hover:bg-blue-500/20 transition-all shadow-xl"
-              >
-                <Volume2 className="w-10 h-10" />
-              </button>
-              <span className="text-[10px] font-black text-blue-400/70 uppercase tracking-widest">Target Word</span>
+      {/* ZONE 2 - Status Effects */}
+      <AnimatePresence initial={false}>
+        {hasStatusEffects && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="min-h-[26px] border-b border-[#2a2845] bg-[#13122a] px-[10px] py-1"
+          >
+            <div className="flex flex-wrap items-center gap-1.5">
+              {isShielded && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(34,197,94,0.2)] bg-[rgba(34,197,94,0.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#4ade80]">
+                  <span className="h-[5px] w-[5px] rounded-full bg-[#4ade80]" />
+                  shield block
+                </span>
+              )}
+              {(player.streak ?? 0) > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(124,58,237,0.2)] bg-[rgba(124,58,237,0.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#a78bfa]">
+                  <span className="h-[5px] w-[5px] rounded-full bg-[#a78bfa]" />
+                  ×{player.streak ?? 0} streak
+                </span>
+              )}
+              {attempts > 0 && !isLocked && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#f87171]">
+                  <span className="h-[5px] w-[5px] rounded-full bg-[#f87171]" />
+                  miss {attempts}/{CONFIG.MAX_FAILED_ATTEMPTS}
+                </span>
+              )}
+              {encounter.type === 'boss' && !isEncounterCompleted && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#f87171]">
+                  <span className="h-[5px] w-[5px] rounded-full bg-[#f87171]" />
+                  timer {Math.ceil(timer)}s
+                </span>
+              )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            <div className="flex flex-col items-center gap-3">
-              <button
-                onClick={() => {
-                  const typed = userInput.join('').toLowerCase();
-                  if (typed) speak(typed);
-                }}
-                className="w-20 h-20 bg-white/5 text-white rounded-full flex items-center justify-center border border-white/10 hover:bg-white/10 transition-all shadow-xl"
-              >
-                <Volume1 className="w-10 h-10" />
-              </button>
-              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Your Input</span>
-            </div>
+      {/* ZONE 3 - Enemy */}
+      <div
+        className={cn(
+          "relative mx-[10px] mt-2 overflow-hidden rounded-2xl border bg-[#1e1c35] p-3",
+          encounter.type === 'boss' ? "border-[#7f1d1d] bg-[#1f1215]" : "border-[#3d3b5e]"
+        )}
+      >
+        {bossAttacking && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-red-500/20"
+          />
+        )}
+        <div className="relative z-10 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            {getEncounterIcon(cn('h-5 w-5 shrink-0', bossAttacking && 'animate-bounce text-red-500'))}
+            <div className="min-w-0 text-[11px] font-bold uppercase text-white">{getEncounterTitle()}</div>
           </div>
-
-          {/* Word Info During Input */}
-          <AnimatePresence>
-            {dictionaryInfo && !isEncounterCompleted && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4 text-center max-w-2xl mx-auto"
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em]">Word Clues</span>
-                  <div className="flex flex-col items-center gap-1">
-                    <p className="text-2xl font-bold text-white leading-tight">{dictionaryInfo.vietnamese}</p>
-                    {dictionaryInfo.vietnameseMeaning && (
-                      <p className="text-sm text-gray-400 font-medium">{dictionaryInfo.vietnameseMeaning}</p>
-                    )}
-                  </div>
-                  {dictionaryInfo.phonetic && (
-                    <span className="text-sm font-mono text-gray-500 bg-white/5 px-3 py-1 rounded-full">{dictionaryInfo.phonetic}</span>
-                  )}
-                </div>
-                {dictionaryInfo.meaning && (
-                  <div className="pt-2 border-t border-white/5">
-                    <p className="text-[11px] text-gray-500 leading-relaxed italic max-w-md mx-auto">
-                      "{dictionaryInfo.meaning.replace(new RegExp(currentWord.text, 'gi'), '___')}"
-                    </p>
-                  </div>
-                )}
-              </motion.div>
+          <div className="flex shrink-0 items-center gap-2">
+            {encounter.type === 'boss' && (
+              <span className="rounded-full bg-[#7f1d1d] px-2 py-0.5 text-[9px] font-bold uppercase text-[#fca5a5]">⚔ BOSS</span>
             )}
-          </AnimatePresence>
-
-          <div className="flex flex-wrap justify-center gap-2">
-            {syllables.map((syllable, sIdx) => {
-              const prevCharsCount = syllables.slice(0, sIdx).join('').length;
-
-              return (
-                <div key={sIdx} className="flex gap-1 p-2 bg-white/5 rounded-2xl border border-white/5 shadow-inner">
-                  {syllable.split('').map((char, cIdx) => {
-                    const idx = prevCharsCount + cIdx;
-                    const isRevealed = revealedIndices.includes(idx);
-                    const showFeedback = isSubmitted;
-                    const isCorrectChar = userInput[idx] === char.toLowerCase();
-
-                    return (
-                      <div key={idx} className="relative">
-                        <input
-                          id={`input-${idx}`}
-                          type="text"
-                          value={userInput[idx] || ''}
-                          onChange={(e) => handleInputChange(idx, e.target.value)}
-                          onKeyDown={(e) => handleKeyDown(idx, e)}
-                          disabled={isEncounterCompleted || isLocked || isAttacking}
-                          className={cn(
-                            "w-14 h-20 text-4xl font-black rounded-2xl border-4 text-center transition-all duration-300 outline-none uppercase",
-                            showFeedback && isCorrectChar
-                              ? "bg-green-500/20 border-green-500 text-green-500"
-                              : showFeedback && userInput[idx] && !isCorrectChar
-                                ? "bg-red-500/20 border-red-500 text-red-500"
-                                : isRevealed
-                                  ? "bg-yellow-500/20 border-yellow-500 text-yellow-500"
-                                  : "bg-white/10 border-white/20 text-white focus:border-blue-500 focus:bg-white/20"
-                          )}
-                          autoComplete="off"
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+            <span className="text-[10px] font-bold text-slate-400">{hitsRemaining}/{hitsRequired} hits remaining</span>
           </div>
+        </div>
+        <div className="relative z-10 mt-2 h-[7px] overflow-hidden rounded-full bg-[#2a2845]">
+          <motion.div
+            className="h-full rounded-full bg-[linear-gradient(90deg,#b91c1c,#f97316)]"
+            animate={{ width: `${hpBarWidth}%` }}
+          />
+        </div>
+        {encounter.type === 'boss' && !isEncounterCompleted && (
+          <div className="relative z-10 mt-2 h-1 overflow-hidden rounded-full bg-[#2a2845]">
+            <motion.div
+              className="h-full rounded-full bg-[#F59E0B]"
+              initial={{ width: '100%' }}
+              animate={{ width: `${((timer ?? 0) / (CONFIG.BOSS_TIMER_SECONDS || 1)) * 100}%` }}
+              transition={{ duration: 0.1, ease: 'linear' }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ZONE 4 - Word Clue */}
+      <AnimatePresence>
+        {dictionaryInfo && !isEncounterCompleted && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mx-[10px] mt-1.5 flex items-center justify-between gap-3 rounded-xl border border-[#2a2845] bg-[rgba(255,255,255,0.04)] p-3"
+          >
+            <div className="min-w-0 flex-1 text-left">
+              <p className="text-[13px] font-semibold leading-tight text-[#f1f5f9]">{dictionaryInfo.vietnamese}</p>
+              {dictionaryInfo.vietnameseMeaning && (
+                <p className="mt-1 text-[10px] font-medium leading-snug text-slate-500">{dictionaryInfo.vietnameseMeaning}</p>
+              )}
+              {dictionaryInfo.phonetic && (
+                <p className="mt-1 text-[10px] italic text-[#64748b]">{dictionaryInfo.phonetic}</p>
+              )}
+              {dictionaryInfo.meaning && (
+                <p className="mt-1 text-[10px] leading-[1.4] text-[#475569]">
+                  "{dictionaryInfo.meaning.replace(new RegExp(currentWord.text, 'gi'), '___')}"
+                </p>
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  onClick={() => speak(currentWord.text)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-400 transition-all hover:bg-blue-500/20"
+                >
+                  <Volume2 className="h-4 w-4" />
+                </button>
+                <span className="text-[8px] font-bold uppercase text-blue-400/70">WORD</span>
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  onClick={() => {
+                    const typed = userInput.join('').toLowerCase();
+                    if (typed) speak(typed);
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition-all hover:bg-white/10"
+                >
+                  <Volume1 className="h-4 w-4" />
+                </button>
+                <span className="text-[8px] font-bold uppercase text-slate-500">YOU</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ZONE 5 - Input */}
+      <div
+        className={cn(
+          "mx-[10px] mt-3 rounded-2xl bg-[#1a1830]/70 px-2.5 py-3",
+          shake && "animate-shake"
+        )}
+      >
+        <div className="flex flex-wrap justify-center gap-[10px]">
+          {syllables.map((syllable, sIdx) => {
+            const prevCharsCount = syllables.slice(0, sIdx).join('').length;
+
+            return (
+              <div key={sIdx} className="flex gap-1">
+                {syllable.split('').map((char, cIdx) => {
+                  const idx = prevCharsCount + cIdx;
+                  const isRevealed = revealedIndices.includes(idx);
+                  const showFeedback = isSubmitted;
+                  const isCorrectChar = userInput[idx] === char.toLowerCase();
+
+                  return (
+                    <div key={idx} className="relative">
+                      <input
+                        id={`input-${idx}`}
+                        type="text"
+                        value={userInput[idx] || ''}
+                        onChange={(e) => handleInputChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(idx, e)}
+                        disabled={isEncounterCompleted || isLocked || isAttacking}
+                        className={cn(
+                          "h-11 min-h-11 w-11 min-w-11 rounded-[10px] border-2 text-center text-base font-bold uppercase text-white outline-none transition-all duration-200",
+                          showFeedback && isSubmittedWordCorrect && isCorrectChar
+                            ? "border-[#22C55E] bg-[rgba(34,197,94,0.1)] text-[#4ade80]"
+                            : showFeedback && !isSubmittedWordCorrect && userInput[idx]
+                              ? "border-[#ef4444] bg-[rgba(239,68,68,0.1)] text-[#f87171]"
+                              : isRevealed
+                                ? "border-[#F59E0B] bg-[rgba(245,158,11,0.1)] text-[#F59E0B]"
+                                : "border-[#3d3b5e] bg-[#1e1c35] focus:border-[#7C3AED] focus:shadow-[0_0_0_3px_rgba(124,58,237,0.2)]"
+                        )}
+                        autoComplete="off"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+          {player.inventory.map(item => (
+            <div key={item.type} className="relative">
+              <button
+                onClick={() => item.count > 0 && handleUseItemInternal(item.type)}
+                onMouseEnter={() => setHoveredItem(item.type)}
+                onMouseLeave={() => setHoveredItem(null)}
+                disabled={item.count === 0}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-[20px] border border-[#3d3b5e] bg-[#1e1c35] px-2 text-[9px] font-bold uppercase text-slate-300 transition-all hover:border-[#7C3AED] hover:text-white disabled:opacity-30 disabled:grayscale",
+                  item.type === 'shield' && isShielded && "border-green-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]"
+                )}
+              >
+                {item.type === 'hint' && <HelpCircle className="h-3 w-3 text-blue-400" />}
+                {item.type === 'shield' && <Shield className="h-3 w-3 text-green-400" />}
+                {item.type === 'reveal_letter' && <Zap className="h-3 w-3 text-yellow-400" />}
+                {item.type === 'armor_plate' && <Shield className="h-3 w-3 text-purple-400" />}
+                <span>{item.type.replace('_', ' ')}</span>
+                <span className="text-slate-500">×{item.count}</span>
+              </button>
+
+              {hoveredItem === item.type && (
+                <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-36 -translate-x-1/2 rounded-lg border border-white/10 bg-black p-2 text-[10px] text-gray-400 shadow-2xl">
+                  <div className="mb-1 font-black uppercase text-white">
+                    {item.type.replace('_', ' ')}
+                  </div>
+                  {item.type === 'hint' && "Reveals one random letter of the word."}
+                  {item.type === 'shield' && "Blocks the next incoming attack completely."}
+                  {item.type === 'reveal_letter' && "Reveals two random letters instantly."}
+                  {item.type === 'armor_plate' && "Restores a portion of your shield."}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mx-[10px] mt-3 space-y-3">
 
           <AnimatePresence mode="wait">
             {dictionaryInfo && isEncounterCompleted && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white/5 p-8 rounded-[40px] border border-white/10 space-y-6 text-left max-w-3xl mx-auto"
+                className="mx-auto max-w-3xl space-y-6 rounded-2xl border border-[#2a2845] bg-white/5 p-6 text-left"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -619,6 +661,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
             )}
           </AnimatePresence>
 
+          {/* ZONE 6 - Action */}
           {isEncounterCompleted ? (
             <button
               autoFocus
@@ -632,9 +675,9 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
             <button
               onClick={handleSubmit}
               disabled={isEncounterCompleted || isLocked || isAttacking || !isInputComplete}
-              className="w-full bg-white text-black font-black py-4 rounded-2xl shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-20 disabled:scale-100"
+              className="h-12 w-full rounded-[11px] bg-[linear-gradient(135deg,#7C3AED,#5B21B6)] font-bold tracking-[0.1em] text-white shadow-2xl transition-all hover:bg-[linear-gradient(135deg,#8B5CF6,#7C3AED)] active:scale-[0.98] disabled:scale-100 disabled:opacity-30"
             >
-              ATTACK
+              ⚔ ATTACK
             </button>
           )}
 
@@ -659,10 +702,17 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
               </p>
             </motion.div>
           )}
-        </motion.div>
       </div>
 
       <style>{`
+        @keyframes success-flash {
+          0% { opacity: 0; }
+          20% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        .success-flash {
+          animation: success-flash 300ms ease-out forwards;
+        }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
           25% { transform: translateX(-5px); }

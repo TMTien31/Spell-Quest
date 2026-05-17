@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { MapPin, Lock, Trophy, Skull, Swords, DoorClosed, Gift, RotateCcw } from 'lucide-react';
+import { RotateCcw, Skull } from 'lucide-react';
 import { Level, Encounter } from '../../models/types';
 import { cn } from '../../utils/gameUtils';
 
@@ -34,137 +34,273 @@ export default function AdventureMap({
 
   const getEncounterIcon = (encounter: Encounter) => {
     switch (encounter.type) {
-      case 'gate': return <DoorClosed className="w-5 h-5" />;
-      case 'enemy': return <Swords className="w-5 h-5" />;
-      case 'treasure': return <Gift className="w-5 h-5" />;
-      case 'boss': return <Skull className="w-6 h-6" />;
-      default: return <MapPin className="w-5 h-5" />;
+      case 'gate': return '🚪';
+      case 'enemy': return '⚔';
+      case 'treasure': return '✦';
+      case 'boss': return '☠';
+      default: return '•';
     }
   };
 
+  const getThemeEmoji = () => {
+    switch (currentLevel.theme) {
+      case 'forest': return '🌲';
+      case 'cave': return '💎';
+      case 'castle': return '🐉';
+      default: return '✦';
+    }
+  };
+
+  const totalNodes = currentLevel.encounters.length + 1;
+  const yPatterns: Record<number, number[]> = {
+    4: [160, 66, 136, 78],
+    5: [160, 68, 140, 68, 116],
+    6: [160, 68, 138, 66, 146, 88]
+  };
+  const yPattern = yPatterns[totalNodes] || Array.from({ length: totalNodes }, (_, i) => i % 2 === 0 ? 150 : 68);
+  const nodePoints = Array.from({ length: totalNodes }, (_, i) => ({
+    x: 42 + (i * 316) / Math.max(totalNodes - 1, 1),
+    y: yPattern[i] ?? 110
+  }));
+  const pathD = nodePoints.reduce((path, point, i) => {
+    if (i === 0) return `M ${point.x} ${point.y}`;
+    const prev = nodePoints[i - 1];
+    const midX = (prev.x + point.x) / 2;
+    return `${path} C ${midX} ${prev.y}, ${midX} ${point.y}, ${point.x} ${point.y}`;
+  }, '');
+  const progressRatio = Math.min(Math.max(currentEncounterIndex / Math.max(currentLevel.encounters.length, 1), 0), 1);
+
   return (
-    <div className="space-y-12 py-12">
-      <div className="text-center space-y-4">
-        <h2 className="text-4xl font-black tracking-tighter uppercase italic bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
-          {currentLevel.name}
-        </h2>
-        <div className="flex justify-center gap-2">
-          {levels.map((level, i) => (
-            <div 
-              key={level.id}
-              className={cn(
-                "w-3 h-3 rounded-full transition-all duration-500",
-                i === currentLevelIndex ? "bg-blue-500 w-8" : 
-                i < currentLevelIndex ? "bg-green-500" : "bg-white/10"
-              )}
-            />
-          ))}
-        </div>
-      </div>
+    <div className="relative mx-auto max-w-3xl overflow-hidden rounded-[28px] bg-[#0f0e1a] px-4 py-8 shadow-2xl shadow-black/25">
+      <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full opacity-[0.06]" aria-hidden="true">
+        <defs>
+          <pattern id="map-dot-pattern" width="28" height="28" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.4" fill="#8B5CF6" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#map-dot-pattern)" />
+      </svg>
+      <div className="pointer-events-none absolute -left-10 -top-10 z-0 h-[150px] w-[150px] rounded-full bg-[rgba(124,58,237,0.08)] blur-[40px]" />
+      <div className="pointer-events-none absolute -bottom-[30px] -right-[30px] z-0 h-[100px] w-[100px] rounded-full bg-[rgba(59,130,246,0.07)] blur-[30px]" />
 
-      <div className="relative max-w-2xl mx-auto px-8">
-        {/* Path Line */}
-        <div className="absolute top-1/2 left-8 right-8 h-1 bg-white/5 -translate-y-1/2 rounded-full overflow-hidden">
-          <motion.div 
-            className="h-full bg-gradient-to-r from-blue-500 to-purple-600"
-            initial={{ width: 0 }}
-            animate={{ width: `${(currentEncounterIndex / (currentLevel.encounters.length)) * 100}%` }}
-          />
-        </div>
-
-        {/* Encounters */}
-        <div className="relative flex justify-between items-center">
-          {currentLevel.encounters.map((encounter, i) => {
-            const isCurrent = i === currentEncounterIndex;
-            const isCompleted = encounter.completed;
-            const isLocked = i > currentEncounterIndex;
-
-            return (
-              <motion.button
-                key={encounter.id}
-                whileHover={isCurrent ? { scale: 1.1 } : {}}
-                whileTap={isCurrent ? { scale: 0.95 } : {}}
-                onClick={() => isCurrent && onSelectEncounter(encounter)}
-                disabled={!isCurrent}
+      <div className="relative z-10 space-y-8">
+        <div className="space-y-3 text-center">
+          <div>
+            <h2 className="text-[20px] font-medium leading-tight text-[#f1f5f9]">
+              {getThemeEmoji()} {currentLevel.name}
+            </h2>
+            <p className="mt-1 text-[10px] font-medium uppercase text-[#64748b]">
+              Level {currentLevelIndex + 1} of {levels.length}
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            {levels.map((level, i) => (
+              <div
+                key={level.id}
                 className={cn(
-                  "relative z-10 w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-500",
-                  isCurrent ? "bg-red-600 border-white scale-125 shadow-xl shadow-red-500/50" :
-                  isLocked ? "bg-gray-800/50 border-white/5 opacity-50 cursor-not-allowed" :
-                  isCompleted ? "bg-green-500 border-green-400" :
-                  "bg-gray-800/50 border-white/5 opacity-50 cursor-not-allowed"
+                  "transition-all duration-500",
+                  i === currentLevelIndex ? "h-[7px] w-5 rounded-[4px] bg-[#7C3AED]" :
+                  i < currentLevelIndex ? "h-2 w-2 rounded-full bg-[#22C55E]" :
+                  "h-2 w-2 rounded-full bg-[#2a2845] opacity-50"
                 )}
-              >
-                {!isLocked ? getEncounterIcon(encounter) : <Lock className="w-4 h-4 text-gray-700" />}
-                
-                {isCurrent && (
-                  <motion.div 
-                    layoutId="active-indicator"
-                    className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-tighter whitespace-nowrap"
-                  >
-                    Current
-                  </motion.div>
-                )}
-              </motion.button>
-            );
-          })}
-
-          {/* Boss Node */}
-          <motion.button
-            whileHover={currentEncounterIndex === currentLevel.encounters.length ? { scale: 1.1 } : {}}
-            onClick={() => currentEncounterIndex === currentLevel.encounters.length && onSelectEncounter(currentLevel.boss)}
-            disabled={currentEncounterIndex < currentLevel.encounters.length}
-            className={cn(
-              "relative z-10 w-16 h-16 rounded-3xl flex items-center justify-center border-4 transition-all duration-500",
-              currentEncounterIndex === currentLevel.encounters.length ? "bg-red-600 border-white scale-125 shadow-2xl shadow-red-500/50" :
-              currentEncounterIndex < currentLevel.encounters.length ? "bg-gray-800/50 border-white/5 opacity-50 cursor-not-allowed" :
-              currentLevel.boss.completed ? "bg-green-500 border-green-400" :
-              "bg-gray-800/50 border-white/5 opacity-50 cursor-not-allowed"
-            )}
-          >
-            <Skull className={cn("w-8 h-8 transition-colors duration-500", 
-              currentEncounterIndex === currentLevel.encounters.length ? "text-white" : 
-              currentLevel.boss.completed ? "text-white" : "text-gray-700")} />
-            
-            {currentEncounterIndex === currentLevel.encounters.length && (
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-tighter">
-                BOSS
-              </div>
-            )}
-          </motion.button>
+              />
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="max-w-md mx-auto bg-[#16161D] p-6 rounded-[32px] border border-white/5 text-center space-y-2">
-        <p className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Objective</p>
-        <p className="text-sm font-medium text-gray-300">
-          {currentEncounterIndex < currentLevel.encounters.length 
-            ? `Complete ${currentLevel.encounters.length - currentEncounterIndex} more encounters to face the Boss!`
-            : "The Boss awaits! Prepare yourself for the ultimate spelling challenge."}
-        </p>
-      </div>
-      {/* Reset Controls */}
-      <div className="flex justify-center flex-wrap gap-4 mt-8">
-        <button
-          onClick={() => onResetRequest('map')}
-          className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold border border-white/5 transition-all"
-        >
-          <RotateCcw className="w-4 h-4" />
-          RESET MAP
-        </button>
-        <button
-          onClick={() => onResetRequest('all')}
-          className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded-xl text-xs font-bold border border-yellow-500/10 transition-all"
-        >
-          <RotateCcw className="w-4 h-4" />
-          SOFT RESET (KEEP HP/COINS)
-        </button>
-        <button
-          onClick={() => onResetRequest('hard')}
-          className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold border border-red-500/10 transition-all"
-        >
-          <Skull className="w-4 h-4" />
-          HARD RESET
-        </button>
+        <div className="relative mx-auto w-full max-w-2xl">
+          <svg viewBox="0 0 400 220" className="h-[250px] w-full overflow-visible" role="img" aria-label={`${currentLevel.name} adventure path`}>
+            <path
+              d={pathD}
+              fill="none"
+              stroke="#2a2845"
+              strokeWidth="5"
+              strokeLinecap="round"
+            />
+            <motion.path
+              d={pathD}
+              fill="none"
+              stroke="#7C3AED"
+              strokeWidth="5"
+              strokeLinecap="round"
+              pathLength="1"
+              initial={{ strokeDasharray: '0 1' }}
+              animate={{ strokeDasharray: `${progressRatio} 1` }}
+              transition={{ duration: 0.7, ease: 'easeOut' }}
+            />
+
+            {currentLevel.encounters.map((encounter, i) => {
+              const point = nodePoints[i];
+              const isCurrent = i === currentEncounterIndex;
+              const isCompleted = encounter.completed;
+              const isLocked = i > currentEncounterIndex;
+
+              return (
+                <motion.g
+                  key={encounter.id}
+                  whileHover={isCurrent ? { scale: 1.06 } : {}}
+                  whileTap={isCurrent ? { scale: 0.96 } : {}}
+                  onClick={() => isCurrent && onSelectEncounter(encounter)}
+                  className={cn(isCurrent ? "cursor-pointer" : "cursor-not-allowed")}
+                  style={{ transformOrigin: `${point.x}px ${point.y}px` }}
+                >
+                  {isCurrent && (
+                    <>
+                      <circle
+                        cx={point.x}
+                        cy={point.y}
+                        r="30"
+                        fill="none"
+                        stroke="rgba(124,58,237,0.3)"
+                        strokeWidth="2"
+                        strokeDasharray="4 3"
+                      />
+                      <text
+                        x={point.x}
+                        y={point.y - 39}
+                        textAnchor="middle"
+                        className="fill-[#7C3AED] text-[9px] font-bold uppercase"
+                      >
+                        TAP!
+                      </text>
+                    </>
+                  )}
+
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={isCurrent ? 25 : isCompleted ? 22 : 18}
+                    fill={isCurrent ? "rgba(124,58,237,0.2)" : isCompleted ? "rgba(34,197,94,0.15)" : "#1e1c35"}
+                    stroke={isCurrent ? "#7C3AED" : isCompleted ? "#22C55E" : "#3d3b5e"}
+                    strokeWidth={isCurrent || isCompleted ? 2 : 1.5}
+                    opacity={isLocked ? 0.45 : 1}
+                  />
+                  <text
+                    x={point.x}
+                    y={point.y + 6}
+                    textAnchor="middle"
+                    className={cn(
+                      "select-none text-[16px] font-bold",
+                      isCompleted ? "fill-[#4ade80]" : isCurrent ? "fill-white" : "fill-[#64748b]"
+                    )}
+                    opacity={isLocked ? 0.6 : 1}
+                  >
+                    {isCompleted ? '✓' : isLocked ? '🔒' : getEncounterIcon(encounter)}
+                  </text>
+                </motion.g>
+              );
+            })}
+
+            {(() => {
+              const point = nodePoints[nodePoints.length - 1];
+              const isCurrent = currentEncounterIndex === currentLevel.encounters.length;
+              const isLocked = currentEncounterIndex < currentLevel.encounters.length;
+              const isCompleted = currentLevel.boss.completed;
+
+              return (
+                <motion.g
+                  whileHover={isCurrent ? { scale: 1.06 } : {}}
+                  whileTap={isCurrent ? { scale: 0.96 } : {}}
+                  onClick={() => isCurrent && onSelectEncounter(currentLevel.boss)}
+                  className={cn(isCurrent ? "cursor-pointer" : "cursor-not-allowed")}
+                  style={{ filter: 'drop-shadow(0 0 8px rgba(239,68,68,0.35))', transformOrigin: `${point.x}px ${point.y}px` }}
+                >
+                  {isCurrent && (
+                    <>
+                      <circle
+                        cx={point.x}
+                        cy={point.y}
+                        r="34"
+                        fill="none"
+                        stroke="rgba(124,58,237,0.3)"
+                        strokeWidth="2"
+                        strokeDasharray="4 3"
+                      />
+                      <text
+                        x={point.x}
+                        y={point.y - 42}
+                        textAnchor="middle"
+                        className="fill-[#7C3AED] text-[9px] font-bold uppercase"
+                      >
+                        TAP!
+                      </text>
+                    </>
+                  )}
+                  <rect
+                    x={point.x - 20}
+                    y={point.y - 50}
+                    width="40"
+                    height="16"
+                    rx="7"
+                    fill="#7f1d1d"
+                    opacity={isLocked ? 0.45 : 1}
+                  />
+                  <text
+                    x={point.x}
+                    y={point.y - 38.5}
+                    textAnchor="middle"
+                    className="fill-[#fca5a5] text-[9px] font-bold uppercase"
+                    opacity={isLocked ? 0.55 : 1}
+                  >
+                    BOSS
+                  </text>
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={isCompleted ? 22 : 28}
+                    fill={isCompleted ? "rgba(34,197,94,0.15)" : "rgba(127,29,29,0.25)"}
+                    stroke={isCompleted ? "#22C55E" : "#ef4444"}
+                    strokeWidth="2"
+                    opacity={isLocked ? 0.45 : 1}
+                  />
+                  <text
+                    x={point.x}
+                    y={point.y + 6}
+                    textAnchor="middle"
+                    className={cn("select-none font-bold", isCompleted ? "fill-[#4ade80] text-[16px]" : "fill-[#ef4444] text-[16px]")}
+                    opacity={isLocked ? 0.55 : 1}
+                  >
+                    {isCompleted ? '✓' : isLocked ? '🔒' : '☠'}
+                  </text>
+                </motion.g>
+              );
+            })()}
+          </svg>
+        </div>
+
+        <div className="mx-auto max-w-md rounded-2xl border border-[rgba(124,58,237,0.25)] bg-[#1e1c35] p-4 text-center">
+          <p className="text-[9px] font-bold uppercase text-[#7C3AED]">✦ objective</p>
+          <p className="mt-1 text-[11px] font-medium leading-relaxed text-[#94a3b8]">
+            {currentEncounterIndex < currentLevel.encounters.length
+              ? `Complete ${currentLevel.encounters.length - currentEncounterIndex} more encounters to face the Boss!`
+              : "The Boss awaits! Prepare yourself for the ultimate spelling challenge."}
+          </p>
+        </div>
+
+        {/* Reset Controls */}
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => onResetRequest('map')}
+            className="flex h-7 items-center gap-1.5 rounded-lg border border-[#3d3b5e] bg-white/5 px-2.5 text-[9px] font-bold uppercase text-[#94a3b8] transition-all hover:bg-white/10"
+          >
+            <RotateCcw className="h-3 w-3" />
+            RESET MAP
+          </button>
+          <button
+            onClick={() => onResetRequest('all')}
+            className="flex h-7 items-center gap-1.5 rounded-lg border border-[rgba(245,158,11,0.3)] bg-yellow-500/10 px-2.5 text-[9px] font-bold uppercase text-[#F59E0B] transition-all hover:bg-yellow-500/20"
+          >
+            <RotateCcw className="h-3 w-3" />
+            SOFT RESET
+          </button>
+          <button
+            onClick={() => onResetRequest('hard')}
+            className="flex h-7 items-center gap-1.5 rounded-lg border border-[rgba(239,68,68,0.3)] bg-red-500/10 px-2.5 text-[9px] font-bold uppercase text-[#ef4444] transition-all hover:bg-red-500/20"
+          >
+            <Skull className="h-3 w-3" />
+            HARD RESET
+          </button>
+        </div>
       </div>
     </div>
   );
