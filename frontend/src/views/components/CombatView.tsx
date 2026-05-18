@@ -4,6 +4,16 @@ import { Heart, Shield, Zap, Volume2, Volume1, SkipForward, HelpCircle, Trophy, 
 import { Word, PlayerState, Encounter, InventoryItem } from '../../models/types';
 import { cn, speak, countSyllables, levenshteinDistance, fetchWordInfo } from '../../utils/gameUtils';
 import { CONFIG } from '../../config/config';
+import { EntityDisplay } from '../../components/EntityDisplay';
+import { entityRegistry } from '../../assets/entities/entityRegistry';
+import {
+  getCopy,
+  getInventoryDescription,
+  getInventoryLabel,
+  localizeEntityDescription,
+  localizeEntityName,
+  type AppLanguage
+} from '../../i18n';
 
 interface CombatViewProps {
   encounter: Encounter;
@@ -14,9 +24,11 @@ interface CombatViewProps {
   onWordCompleted: (wordText: string) => void; // Callback when a word is successfully spelled (adds to used words)
   onRequestNewWord: (currentWord: Word, sessionUsedWords: string[]) => Word; // Callback to get a new word for the same encounter
   onGateFailed: () => void; // Callback when player fails 3 times
+  language?: AppLanguage;
 }
 
-export default function CombatView({ encounter, player, onComplete, onUseItem, onDamage, onWordCompleted, onRequestNewWord, onGateFailed }: CombatViewProps) {
+export default function CombatView({ encounter, player, onComplete, onUseItem, onDamage, onWordCompleted, onRequestNewWord, onGateFailed, language = 'en' }: CombatViewProps) {
+  const copy = getCopy(language);
   const [userInput, setUserInput] = useState<string[]>(new Array(encounter.word.text.length).fill(''));
   const [attempts, setAttempts] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -141,7 +153,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       case 'shield': {
         if (!isShielded) {
           setIsShielded(true);
-          setMessage({ text: 'SHIELD ACTIVATED!', type: 'info' });
+          setMessage({ text: copy.combat.messages.shieldActivated, type: 'info' });
           onUseItem(itemType);
         }
         break;
@@ -166,7 +178,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       }
       case 'armor_plate': {
         onUseItem(itemType);
-        setMessage({ text: 'SHIELD RESTORED!', type: 'info' });
+        setMessage({ text: copy.combat.messages.shieldRestored, type: 'info' });
         break;
       }
     }
@@ -267,7 +279,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
         // All hits completed - encounter is defeated
         setIsEncounterCompleted(true);
         setHitsRemaining(0);
-        setMessage({ text: 'ENEMY DEFEATED!', type: 'success' });
+        setMessage({ text: copy.combat.messages.enemyDefeated, type: 'success' });
         speak(targetWord);
         // Mark word as used since encounter is complete
         onWordCompleted(currentWord.text);
@@ -275,7 +287,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       } else {
         // Partial damage dealt - enemy still has HP, transition to new word
         setHitsRemaining(newHitsRemaining);
-        setMessage({ text: `HIT ${hitsRequired - newHitsRemaining}/${hitsRequired}! New word incoming!`, type: 'success' });
+        setMessage({ text: copy.combat.messages.hit(hitsRequired - newHitsRemaining, hitsRequired), type: 'success' });
         speak(targetWord);
         // Transition to new word for next round
         setTimeout(() => {
@@ -295,14 +307,14 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       if (newAttempts >= CONFIG.MAX_FAILED_ATTEMPTS) {
         const damageTaken = CONFIG.DEDUCTED_HP_ON_LOSS;
         setIsLocked(true);
-        setMessage({ text: 'GATE LOCKED! You have been defeated!', type: 'error' });
+        setMessage({ text: copy.combat.messages.gateLocked, type: 'error' });
         onDamage(damageTaken, true);
         setIsAttacking(false);
       } else {
         if (distance <= CONFIG.CLOSE_MATCH_DISTANCE) {
-          setMessage({ text: `Close! (${newAttempts}/${CONFIG.MAX_FAILED_ATTEMPTS})`, type: 'info' });
+          setMessage({ text: copy.combat.messages.close(newAttempts, CONFIG.MAX_FAILED_ATTEMPTS), type: 'info' });
         } else {
-          setMessage({ text: `MISS! (${newAttempts}/${CONFIG.MAX_FAILED_ATTEMPTS})`, type: 'error' });
+          setMessage({ text: copy.combat.messages.miss(newAttempts, CONFIG.MAX_FAILED_ATTEMPTS), type: 'error' });
         }
 
         setIsAttacking(false);
@@ -312,11 +324,11 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
 
   const getEncounterTitle = () => {
     switch (encounter.type) {
-      case 'gate': return 'Unlock the Gate';
-      case 'enemy': return 'Defeat the Enemy';
-      case 'treasure': return 'Unlock the Treasure';
-      case 'boss': return 'BOSS BATTLE';
-      default: return 'Encounter';
+      case 'gate': return copy.combat.titles.gate;
+      case 'enemy': return copy.combat.titles.enemy;
+      case 'treasure': return copy.combat.titles.treasure;
+      case 'boss': return copy.combat.titles.boss;
+      default: return copy.combat.titles.encounter;
     }
   };
 
@@ -332,6 +344,14 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
 
   const hasStatusEffects = isShielded || (player.streak ?? 0) > 0 || attempts > 0 || (encounter.type === 'boss' && !isEncounterCompleted);
   const isSubmittedWordCorrect = userInput.join('').toLowerCase() === currentWord.text.toLowerCase();
+  const entityConfig = entityRegistry[encounter.entityId] ?? entityRegistry.fallback;
+  const entityState = isEncounterCompleted
+    ? 'dead'
+    : isSubmitted && isSubmittedWordCorrect
+      ? 'hit'
+      : bossAttacking
+        ? 'attack'
+        : 'idle';
 
   return (
     <div className="mx-auto max-w-3xl overflow-hidden rounded-[24px] bg-[#0f0e1a] pb-4 shadow-2xl shadow-black/30">
@@ -343,7 +363,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       <div className="bg-[#1a1830] px-[10px] py-3">
         <div className="grid grid-cols-3 gap-2">
           <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase text-slate-500">HP</div>
+            <div className="text-[9px] font-bold uppercase text-slate-500">{copy.combat.hp}</div>
             <div className="text-[10px] font-bold text-[#ef4444]">{player.hp ?? 0}</div>
             <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[#2a2845]">
               <motion.div
@@ -354,7 +374,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           </div>
 
           <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase text-slate-500">SHIELD</div>
+            <div className="text-[9px] font-bold uppercase text-slate-500">{copy.combat.shield}</div>
             <div className="text-[10px] font-bold text-[#3b82f6]">{player.shield ?? 0}</div>
             <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[#2a2845]">
               <motion.div
@@ -365,8 +385,8 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           </div>
 
           <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase text-slate-500">STREAK</div>
-            <div className="text-[10px] font-bold text-[#F59E0B]">🔥×{player.streak ?? 0}</div>
+            <div className="text-[9px] font-bold uppercase text-slate-500">{copy.combat.streak}</div>
+            <div className="text-[10px] font-bold text-[#F59E0B]">x{player.streak ?? 0}</div>
             <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[#2a2845]">
               <motion.div
                 className="h-full rounded-[3px] bg-[#F59E0B]"
@@ -390,25 +410,25 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
               {isShielded && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(34,197,94,0.2)] bg-[rgba(34,197,94,0.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#4ade80]">
                   <span className="h-[5px] w-[5px] rounded-full bg-[#4ade80]" />
-                  shield block
+                  {copy.combat.shieldBlock}
                 </span>
               )}
               {(player.streak ?? 0) > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(124,58,237,0.2)] bg-[rgba(124,58,237,0.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#a78bfa]">
                   <span className="h-[5px] w-[5px] rounded-full bg-[#a78bfa]" />
-                  ×{player.streak ?? 0} streak
+                  x{player.streak ?? 0} {copy.combat.streak.toLowerCase()}
                 </span>
               )}
               {attempts > 0 && !isLocked && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#f87171]">
                   <span className="h-[5px] w-[5px] rounded-full bg-[#f87171]" />
-                  miss {attempts}/{CONFIG.MAX_FAILED_ATTEMPTS}
+                  {copy.combat.miss} {attempts}/{CONFIG.MAX_FAILED_ATTEMPTS}
                 </span>
               )}
               {encounter.type === 'boss' && !isEncounterCompleted && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.15)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#f87171]">
                   <span className="h-[5px] w-[5px] rounded-full bg-[#f87171]" />
-                  timer {Math.ceil(timer)}s
+                  {copy.combat.timer} {Math.ceil(timer)}s
                 </span>
               )}
             </div>
@@ -438,10 +458,27 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {encounter.type === 'boss' && (
-              <span className="rounded-full bg-[#7f1d1d] px-2 py-0.5 text-[9px] font-bold uppercase text-[#fca5a5]">⚔ BOSS</span>
+              <span className="rounded-full bg-[#7f1d1d] px-2 py-0.5 text-[9px] font-bold uppercase text-[#fca5a5]">{copy.combat.boss}</span>
             )}
-            <span className="text-[10px] font-bold text-slate-400">{hitsRemaining}/{hitsRequired} hits remaining</span>
+            <span className="text-[10px] font-bold text-slate-400">{copy.combat.hitsRemaining(hitsRemaining, hitsRequired)}</span>
           </div>
+        </div>
+        <div className="relative z-10 mt-3 flex justify-center">
+          <EntityDisplay
+            entityId={encounter.entityId}
+            size={encounter.type === 'boss' ? 'xl' : 'lg'}
+            state={entityState}
+            className={cn(
+              bossAttacking && 'animate-bounce',
+              isEncounterCompleted && 'opacity-45 grayscale'
+            )}
+          />
+        </div>
+        <div className="relative z-10 mt-2 text-center">
+          <div className="text-sm font-black text-white">{localizeEntityName(entityConfig, language)}</div>
+          <p className="mx-auto mt-1 max-w-md text-[10px] font-medium leading-relaxed text-[#94a3b8]">
+            {localizeEntityDescription(entityConfig, language)}
+          </p>
         </div>
         <div className="relative z-10 mt-2 h-[7px] overflow-hidden rounded-full bg-[#2a2845]">
           <motion.div
@@ -492,7 +529,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                 >
                   <Volume2 className="h-4 w-4" />
                 </button>
-                <span className="text-[8px] font-bold uppercase text-blue-400/70">WORD</span>
+                <span className="text-[8px] font-bold uppercase text-blue-400/70">{copy.combat.word}</span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
@@ -505,7 +542,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                 >
                   <Volume1 className="h-4 w-4" />
                 </button>
-                <span className="text-[8px] font-bold uppercase text-slate-500">YOU</span>
+                <span className="text-[8px] font-bold uppercase text-slate-500">{copy.combat.you}</span>
               </div>
             </div>
           </motion.div>
@@ -577,19 +614,16 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                 {item.type === 'shield' && <Shield className="h-3 w-3 text-green-400" />}
                 {item.type === 'reveal_letter' && <Zap className="h-3 w-3 text-yellow-400" />}
                 {item.type === 'armor_plate' && <Shield className="h-3 w-3 text-purple-400" />}
-                <span>{item.type.replace('_', ' ')}</span>
-                <span className="text-slate-500">×{item.count}</span>
+                <span>{getInventoryLabel(item.type, language)}</span>
+                <span className="text-slate-500">x{item.count}</span>
               </button>
 
               {hoveredItem === item.type && (
                 <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-36 -translate-x-1/2 rounded-lg border border-white/10 bg-black p-2 text-[10px] text-gray-400 shadow-2xl">
                   <div className="mb-1 font-black uppercase text-white">
-                    {item.type.replace('_', ' ')}
+                    {getInventoryLabel(item.type, language)}
                   </div>
-                  {item.type === 'hint' && "Reveals one random letter of the word."}
-                  {item.type === 'shield' && "Blocks the next incoming attack completely."}
-                  {item.type === 'reveal_letter' && "Reveals two random letters instantly."}
-                  {item.type === 'armor_plate' && "Restores a portion of your shield."}
+                  {getInventoryDescription(item.type, language)}
                 </div>
               )}
             </div>
@@ -608,7 +642,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Word Analysis</span>
+                    <span className="text-xs font-black text-blue-400 uppercase tracking-widest">{copy.combat.wordAnalysis}</span>
                     <div className="h-4 w-px bg-white/10" />
                     <span className="text-sm font-mono text-gray-400">{dictionaryInfo.phonetic}</span>
                   </div>
@@ -621,12 +655,12 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Vietnamese</div>
+                      <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{copy.combat.vietnamese}</div>
                       <p className="text-2xl font-bold text-white leading-tight">{dictionaryInfo.vietnamese}</p>
                     </div>
                     {dictionaryInfo.vietnameseMeaning && (
                       <div className="space-y-1">
-                        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Detailed meaning</div>
+                        <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{copy.combat.detailedMeaning}</div>
                         <p className="text-sm text-gray-300 leading-relaxed">{dictionaryInfo.vietnameseMeaning}</p>
                       </div>
                     )}
@@ -634,7 +668,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
 
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">English Definition</div>
+                      <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{copy.combat.englishDefinition}</div>
                       <p className="text-sm text-gray-300 leading-relaxed italic">"{dictionaryInfo.meaning}"</p>
                     </div>
                   </div>
@@ -668,7 +702,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
               onClick={() => onComplete(true, { damageDealt: CONFIG.SUCCESS_DAMAGE_DEALT_STAT, damageTaken: 0 })}
               className="w-full bg-green-500 text-white font-black py-4 rounded-2xl shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
-              CONTINUE JOURNEY
+              {copy.combat.continueJourney}
               <SkipForward className="w-5 h-5" />
             </button>
           ) : (
@@ -677,7 +711,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
               disabled={isEncounterCompleted || isLocked || isAttacking || !isInputComplete}
               className="h-12 w-full rounded-[11px] bg-[linear-gradient(135deg,#7C3AED,#5B21B6)] font-bold tracking-[0.1em] text-white shadow-2xl transition-all hover:bg-[linear-gradient(135deg,#8B5CF6,#7C3AED)] active:scale-[0.98] disabled:scale-100 disabled:opacity-30"
             >
-              ⚔ ATTACK
+              {copy.combat.attack}
             </button>
           )}
 
@@ -686,7 +720,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
               onClick={onGateFailed}
               className="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-black rounded-xl transition-all mt-4"
             >
-              Return to Map
+              {copy.combat.returnToMap}
             </button>
           )}
 
@@ -698,7 +732,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
               className="mt-4 p-4 bg-red-500/20 border border-red-500/50 rounded-2xl text-center"
             >
               <p className="text-red-500 font-black uppercase tracking-widest">
-                Gate Lost! You have lost this gate!
+                {copy.combat.gateLost}
               </p>
             </motion.div>
           )}

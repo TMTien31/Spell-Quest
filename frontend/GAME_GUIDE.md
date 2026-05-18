@@ -1,6 +1,6 @@
-# Spellbound Gameplay Guide
+# SPELLQUEST Gameplay Guide
 
-This document explains the main screens and gameplay flow in Spellbound.
+This document explains the main screens and gameplay flow in SPELLQUEST.
 
 ## Main Screens
 

@@ -1,0 +1,688 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);font-size:13px}
+.wrap{padding:1rem 0}
+.world{margin-bottom:2.5rem}
+.world-header{padding:12px 16px;border-radius:var(--border-radius-lg) var(--border-radius-lg) 0 0;margin-bottom:0}
+.world-title{font-size:17px;font-weight:500;margin-bottom:3px}
+.world-sub{font-size:12px;opacity:.75}
+.topic-bar{padding:8px 16px;font-size:11.5px;border-bottom:0.5px solid rgba(0,0,0,.08)}
+.topic-label{font-weight:500;margin-right:6px}
+.maps{border:0.5px solid var(--color-border-tertiary);border-radius:0 0 var(--border-radius-lg) var(--border-radius-lg);overflow:hidden}
+.submap{border-bottom:0.5px solid var(--color-border-tertiary)}
+.submap:last-child{border-bottom:none}
+.submap-header{padding:9px 14px 7px;display:flex;align-items:center;gap:10px;background:var(--color-background-secondary)}
+.submap-name{font-weight:500;font-size:13px;color:var(--color-text-primary)}
+.count-badge{font-size:10px;padding:1px 6px;border-radius:3px;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.submap-body{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.mob-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.mob-label{font-size:11px;font-weight:500;color:var(--color-text-tertiary);width:68px;flex-shrink:0}
+.mob-chip{font-size:11px;padding:2px 8px;border-radius:3px;border:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);color:var(--color-text-secondary)}
+.boss-card{background:var(--color-background-primary);border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-tertiary);padding:9px 11px}
+.boss-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px}
+.boss-name{font-weight:500;font-size:13px;color:var(--color-text-primary);flex:1}
+.boss-type{font-size:10px;padding:2px 6px;border-radius:3px;font-weight:500;flex-shrink:0}
+.boss-desc{font-size:11px;color:var(--color-text-secondary);margin-bottom:6px;line-height:1.4}
+.skill-list{display:flex;flex-direction:column;gap:4px}
+.skill-item{font-size:11.5px;line-height:1.5;padding:4px 8px;border-radius:3px;background:var(--color-background-secondary)}
+.skill-name{font-weight:500;color:var(--color-text-primary)}
+.skill-sep{color:var(--color-text-tertiary);margin:0 4px}
+.phase-label{font-size:10px;font-weight:500;padding:2px 6px;border-radius:3px;margin-bottom:4px;display:inline-block}
+
+.w1 .world-header{background:#EAF3DE;border:0.5px solid #97C459}
+.w1 .world-title{color:#27500A}
+.w1 .world-sub{color:#3B6D11}
+.w1 .topic-bar{background:#EAF3DE;color:#3B6D11;border-color:#97C459}
+.w1 .maps{border-color:#97C459}
+.w1 .submap{border-color:#C0DD97}
+.w1 .boss-type.mini{background:#EAF3DE;color:#3B6D11;border:0.5px solid #97C459}
+.w1 .boss-type.final{background:#27500A;color:#C0DD97}
+.w1 .phase-label.p1{background:#EAF3DE;color:#3B6D11}
+.w1 .phase-label.p2{background:#27500A;color:#C0DD97}
+
+.w2 .world-header{background:#E6F1FB;border:0.5px solid #85B7EB}
+.w2 .world-title{color:#0C447C}
+.w2 .world-sub{color:#185FA5}
+.w2 .topic-bar{background:#E6F1FB;color:#185FA5;border-color:#85B7EB}
+.w2 .maps{border-color:#85B7EB}
+.w2 .submap{border-color:#B5D4F4}
+.w2 .boss-type.mini{background:#E6F1FB;color:#185FA5;border:0.5px solid #85B7EB}
+.w2 .boss-type.final{background:#0C447C;color:#B5D4F4}
+.w2 .phase-label.p1{background:#E6F1FB;color:#185FA5}
+.w2 .phase-label.p2{background:#0C447C;color:#B5D4F4}
+
+.w3 .world-header{background:#FAECE7;border:0.5px solid #F0997B}
+.w3 .world-title{color:#712B13}
+.w3 .world-sub{color:#993C1D}
+.w3 .topic-bar{background:#FAECE7;color:#993C1D;border-color:#F0997B}
+.w3 .maps{border-color:#F0997B}
+.w3 .submap{border-color:#F5C4B3}
+.w3 .boss-type.mini{background:#FAECE7;color:#993C1D;border:0.5px solid #F0997B}
+.w3 .boss-type.final{background:#712B13;color:#F5C4B3}
+.w3 .phase-label.p1{background:#FAECE7;color:#993C1D}
+.w3 .phase-label.p2{background:#712B13;color:#F5C4B3}
+
+.w4 .world-header{background:#EEEDFE;border:0.5px solid #AFA9EC}
+.w4 .world-title{color:#26215C}
+.w4 .world-sub{color:#534AB7}
+.w4 .topic-bar{background:#EEEDFE;color:#534AB7;border-color:#AFA9EC}
+.w4 .maps{border-color:#AFA9EC}
+.w4 .submap{border-color:#CECBF6}
+.w4 .boss-type.mini{background:#EEEDFE;color:#534AB7;border:0.5px solid #AFA9EC}
+.w4 .boss-type.final{background:#26215C;color:#CECBF6}
+.w4 .phase-label.p1{background:#EEEDFE;color:#534AB7}
+.w4 .phase-label.p2{background:#26215C;color:#CECBF6}
+
+.w5 .world-header{background:#FAEEDA;border:0.5px solid #EF9F27}
+.w5 .world-title{color:#412402}
+.w5 .world-sub{color:#854F0B}
+.w5 .topic-bar{background:#FAEEDA;color:#854F0B;border-color:#EF9F27}
+.w5 .maps{border-color:#EF9F27}
+.w5 .submap{border-color:#FAC775}
+.w5 .boss-type.mini{background:#FAEEDA;color:#854F0B;border:0.5px solid #EF9F27}
+.w5 .boss-type.final{background:#412402;color:#FAC775}
+.w5 .phase-label.p1{background:#FAEEDA;color:#854F0B}
+.w5 .phase-label.p2{background:#412402;color:#FAC775}
+
+.w6 .world-header{background:#FBEAF0;border:0.5px solid #ED93B1}
+.w6 .world-title{color:#4B1528}
+.w6 .world-sub{color:#993556}
+.w6 .topic-bar{background:#FBEAF0;color:#993556;border-color:#ED93B1}
+.w6 .maps{border-color:#ED93B1}
+.w6 .submap{border-color:#F4C0D1}
+.w6 .boss-type.mini{background:#FBEAF0;color:#993556;border:0.5px solid #ED93B1}
+.w6 .boss-type.final{background:#4B1528;color:#F4C0D1}
+.w6 .phase-label.p1{background:#FBEAF0;color:#993556}
+.w6 .phase-label.p2{background:#4B1528;color:#F4C0D1}
+</style>
+
+<div class="wrap">
+
+<div class="world w1">
+  <div class="world-header">
+    <div class="world-title">Map 1 — The Verdant Wilds (Hoang Dã Xanh Thẳm)</div>
+    <div class="world-sub">Rừng cổ đại nơi mọi sinh vật đều biết nói — nhưng không phải lúc nào cũng nói thật</div>
+  </div>
+  <div class="topic-bar"><span class="topic-label">Topic từ vựng:</span>Animals (động vật), Nature (thiên nhiên), Plants (thực vật), Body Parts (bộ phận cơ thể)</div>
+  <div class="maps">
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 1 — Mossy Gate (Cổng Rêu Phong)</span>
+        <span class="count-badge">2 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Spore Puff — nấm nhỏ nổ bào tử khi bị tấn công</span>
+          <span class="mob-chip">Vine Crawler — dây leo biết bò</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Thornmaw — Hàm Gai</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Cây ăn thịt khổng lồ với hàm răng là gai nhọn. Mỗi khi mở miệng, cả bản đồ rung chuyển.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Thorn Spit</span><span class="skill-sep">—</span>Bắn gai: Delay 1.5s nếu gõ sai. Phù hợp cảm giác "bị gai đâm phải dừng lại".</div>
+            <div class="skill-item"><span class="skill-name">Jaw Lock</span><span class="skill-sep">—</span>Cắn chặt: Shield Disable 3 từ. Hàm khóa chặt khiến bạn không thể tích khiên.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 2 — Canopy Labyrinth (Mê Cung Tán Lá)</span>
+        <span class="count-badge">3 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Spore Puff</span>
+          <span class="mob-chip">Vine Crawler</span>
+          <span class="mob-chip">Bark Golem — tạo vật bằng vỏ cây cứng</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Whisperwind — Gió Thì Thầm</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Thực thể vô hình làm từ gió rừng. Không ai thấy nó nhưng ai cũng nghe tiếng nó.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Rustle</span><span class="skill-sep">—</span>Xào xạc: Shake màn hình nhẹ + Coin Drain 15 mỗi lần gõ sai.</div>
+            <div class="skill-item"><span class="skill-name">Echo Breath</span><span class="skill-sep">—</span>Hơi thở vang: TTS phát lại từ sai bạn vừa gõ (Mimic) gây confusion 2 từ.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 3 — The Ancient Grove (Rừng Cổ Thụ)</span>
+        <span class="count-badge">4 quái thường + 1 final boss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Spore Puff</span>
+          <span class="mob-chip">Vine Crawler</span>
+          <span class="mob-chip">Bark Golem</span>
+          <span class="mob-chip">Hollow Owl — cú rỗng ruột biết đọc tâm trí</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Sylvanus the Root King — Thần Rừng Rễ Vương</div>
+            <span class="boss-type final">Final Boss</span>
+          </div>
+          <div class="boss-desc">Cây cổ thụ 10.000 năm tự tỉnh giấc. Rễ của nó chạy xuyên suốt toàn bộ bản đồ — mọi thứ trong rừng đều là một phần của nó.</div>
+          <div class="phase-label p1">Phase 1 — &gt;50% HP: Sleeping Giant</div>
+          <div class="skill-list" style="margin-bottom:8px">
+            <div class="skill-item"><span class="skill-name">Root Grasp</span><span class="skill-sep">—</span>Rễ bóp: Wound debuff — dame nhận tăng thêm sau mỗi lần bị hit, stack 3 lần.</div>
+            <div class="skill-item"><span class="skill-name">Bark Shield</span><span class="skill-sep">—</span>Giáp vỏ cây: Boss tự hồi 20 HP — Berserk khi xuống &lt;60% HP lần đầu.</div>
+            <div class="skill-item"><span class="skill-name">Spore Cloud</span><span class="skill-sep">—</span>Mây bào tử: Poison tick 8 HP/5 giây trong 20 giây. Kế thừa từ Spore Puff.</div>
+          </div>
+          <div class="phase-label p2">Phase 2 — &lt;50% HP: Awakened Wrath</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Root Grasp+</span><span class="skill-sep">—</span>Stack nhanh gấp đôi + dame nhận tăng +8/hit thay vì +5.</div>
+            <div class="skill-item"><span class="skill-name">Ancient Pulse</span><span class="skill-sep">—</span>Timer Rush 30% + Shield Decay bật — khiên tự tan dần trong lúc timer nhanh hơn.</div>
+            <div class="skill-item"><span class="skill-name">Last Stand</span><span class="skill-sep">—</span>Boss &lt;10% HP: 3 từ cuối mọi effect intensity max — Poison tick tăng lên 15 HP/3 giây.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="world w2">
+  <div class="world-header">
+    <div class="world-title">Map 2 — The Drowned Archives (Kho Lưu Trữ Chìm Đắm)</div>
+    <div class="world-sub">Thư viện cổ đại bị nhấn chìm dưới đáy hồ — tri thức và nước lạnh xen lẫn nhau</div>
+  </div>
+  <div class="topic-bar"><span class="topic-label">Topic từ vựng:</span>School Subjects (môn học), Stationery (văn phòng phẩm), Books & Stories (sách), Numbers & Math (số học)</div>
+  <div class="maps">
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 1 — The Flooded Entrance (Lối Vào Ngập Lụt)</span>
+        <span class="count-badge">2 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Ink Blob — mực loang biết di chuyển</span>
+          <span class="mob-chip">Paper Golem — tạo vật từ những trang sách</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Ripple Watcher — Kẻ Quan Sát Gợn Sóng</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Sinh vật làm từ nước đứng yên phản chiếu mọi thứ ngược lại. Nhìn vào nó như nhìn vào gương méo.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Ripple Distort</span><span class="skill-sep">—</span>Gợn méo: Streak Break ngay lập tức + Coin Drain 20.</div>
+            <div class="skill-item"><span class="skill-name">Mirror Reflex</span><span class="skill-sep">—</span>Phản chiếu: 30% dame bạn gây bị phản lại trong 4 từ.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 2 — The Reading Hall (Đại Sảnh Đọc Sách)</span>
+        <span class="count-badge">3 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Ink Blob</span>
+          <span class="mob-chip">Paper Golem</span>
+          <span class="mob-chip">Dust Specter — bụi sách thành hồn ma</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">The Cataloguer — Người Lập Danh Mục</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Thủ thư đã chết nhưng vẫn đi tuần tra, tay cầm danh sách vô tận các cuốn sách chưa trả.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Overdue Fine</span><span class="skill-sep">—</span>Phạt trễ hạn: Mỗi lần gõ sai mất 25 coin thay vì HP.</div>
+            <div class="skill-item"><span class="skill-name">Shush</span><span class="skill-sep">—</span>Yêu cầu im lặng: Silence 3 từ — không dùng skill được. "Thư viện yêu cầu im lặng."</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 3 — The Sunken Vault (Kho Bí Mật Chìm)</span>
+        <span class="count-badge">4 quái thường + 1 final boss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Ink Blob</span>
+          <span class="mob-chip">Paper Golem</span>
+          <span class="mob-chip">Dust Specter</span>
+          <span class="mob-chip">Cipher Shade — bóng tối mã hóa ký tự</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Lexicon — Từ Điển Sống</div>
+            <span class="boss-type final">Final Boss</span>
+          </div>
+          <div class="boss-desc">Toàn bộ tri thức của thư viện cô đọng thành một thực thể duy nhất. Nó biết mọi từ — và dùng chính chúng để tấn công bạn.</div>
+          <div class="phase-label p1">Phase 1 — &gt;50% HP: The Reference</div>
+          <div class="skill-list" style="margin-bottom:8px">
+            <div class="skill-item"><span class="skill-name">Word Haze</span><span class="skill-sep">—</span>Mù từ: Hide Definition — ẩn nghĩa tiếng Việt và định nghĩa trong 4 từ.</div>
+            <div class="skill-item"><span class="skill-name">Ink Flood</span><span class="skill-sep">—</span>Lũ mực: Poison 6 HP/4 giây — mực tràn vào mọi ngóc ngách.</div>
+            <div class="skill-item"><span class="skill-name">Annotation</span><span class="skill-sep">—</span>Chú thích sai: Decoy — hiện 1 từ giả gần giống, phải chọn đúng trước khi gõ.</div>
+          </div>
+          <div class="phase-label p2">Phase 2 — &lt;50% HP: The Unwritten</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Word Haze+</span><span class="skill-sep">—</span>Ẩn thêm phonetic + ẩn luôn số chữ cái của từ. Chỉ biết nghĩa, không biết dạng từ.</div>
+            <div class="skill-item"><span class="skill-name">Rewrite</span><span class="skill-sep">—</span>Viết lại: Adaptation bật — từ sai xuất hiện lại nhiều hơn, từ đúng biến mất. Punishment học thuật.</div>
+            <div class="skill-item"><span class="skill-name">Final Chapter</span><span class="skill-sep">—</span>Chương cuối: Boss &lt;10% HP — Enrage Timer kích hoạt, mọi effect tăng max 3 từ cuối.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="world w3">
+  <div class="world-header">
+    <div class="world-title">Map 3 — The Ashen Badlands (Đất Cằn Tro Tàn)</div>
+    <div class="world-sub">Sa mạc từng là thành phố hùng mạnh — giờ chỉ còn tro và những kẻ không chịu chết</div>
+  </div>
+  <div class="topic-bar"><span class="topic-label">Topic từ vựng:</span>Food & Cooking (ẩm thực), Kitchen Items (dụng cụ bếp), Flavors (hương vị), Shopping (mua sắm)</div>
+  <div class="maps">
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 1 — Cinder Outpost (Tiền Đồn Than Hồng)</span>
+        <span class="count-badge">2 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Ember Rat — chuột làm từ than hồng</span>
+          <span class="mob-chip">Dust Wraith — xác không hồn bụi cát</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Scorch — Vết Cháy</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Lính canh bằng dung nham đông cứng. Mỗi bước đi để lại dấu lửa không tắt.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Sear</span><span class="skill-sep">—</span>Thiêu đốt: Poison 10 HP/5 giây. Vết bỏng không hết ngay.</div>
+            <div class="skill-item"><span class="skill-name">Ash Cloud</span><span class="skill-sep">—</span>Mây tro: Mana Drain -2 mỗi lần bị hit. Tro bám vào làm mệt mỏi.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 2 — The Salt Flats (Bình Nguyên Muối)</span>
+        <span class="count-badge">3 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Ember Rat</span>
+          <span class="mob-chip">Dust Wraith</span>
+          <span class="mob-chip">Salt Crab — cua khoác giáp muối kết tinh</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Mirage — Ảo Ảnh</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Không ai biết Mirage trông như thế nào thật sự. Nó liên tục thay đổi hình dạng theo ảo giác của người nhìn.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">False Oasis</span><span class="skill-sep">—</span>Ốc đảo giả: Heal Invert 3 từ — dùng Food thì mất HP. "Nước giả không giúp được gì."</div>
+            <div class="skill-item"><span class="skill-name">Shimmer</span><span class="skill-sep">—</span>Lung linh: Variance — dame boss dao động ×0.3–×2.5 trong 5 từ. Khó đoán.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 3 — The Furnace Core (Lõi Lò Nung)</span>
+        <span class="count-badge">4 quái thường + 1 final boss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Ember Rat</span>
+          <span class="mob-chip">Dust Wraith</span>
+          <span class="mob-chip">Salt Crab</span>
+          <span class="mob-chip">Cinder Golem — tạo vật than cháy dở</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Pyraxis the Eternal Flame — Ngọn Lửa Vĩnh Cửu</div>
+            <span class="boss-type final">Final Boss</span>
+          </div>
+          <div class="boss-desc">Không phải sinh vật — là chính ngọn lửa có ý thức. Nó đã cháy từ trước khi thành phố này được xây dựng và sẽ còn cháy mãi sau khi tất cả thành tro.</div>
+          <div class="phase-label p1">Phase 1 — &gt;50% HP: Controlled Burn</div>
+          <div class="skill-list" style="margin-bottom:8px">
+            <div class="skill-item"><span class="skill-name">Flame Whip</span><span class="skill-sep">—</span>Roi lửa: Wound + Poison 8 HP/4 giây đồng thời. Burn và vết thương chồng chất.</div>
+            <div class="skill-item"><span class="skill-name">Heat Wave</span><span class="skill-sep">—</span>Sóng nhiệt: Timer Rush 25% + Mana Drain -1/hit. Nhiệt độ tăng làm mọi thứ cấp bách hơn.</div>
+            <div class="skill-item"><span class="skill-name">Ember Shower</span><span class="skill-sep">—</span>Mưa than: Coin Drain 20/gõ sai trong 5 từ. Tro hủy hoại tài sản.</div>
+          </div>
+          <div class="phase-label p2">Phase 2 — &lt;50% HP: Wildfire</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Flame Whip+</span><span class="skill-sep">—</span>Poison tăng lên 15 HP/3 giây + Wound stack nhanh gấp đôi.</div>
+            <div class="skill-item"><span class="skill-name">Inferno</span><span class="skill-sep">—</span>Địa ngục lửa: Heal Block 1 encounter — "lửa đốt cháy cả khả năng hồi phục."</div>
+            <div class="skill-item"><span class="skill-name">Resonance Burn</span><span class="skill-sep">—</span>Cộng hưởng: Resonance — Poison + Heal Block đang active cùng lúc → Poison tick tăng lên 20 HP/2 giây.</div>
+            <div class="skill-item"><span class="skill-name">Eternal Rage</span><span class="skill-sep">—</span>Boss &lt;10% HP: Last Stand + Enrage Timer đồng thời. 3 từ cuối là địa ngục thật sự.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="world w4">
+  <div class="world-header">
+    <div class="world-title">Map 4 — The Celestial Observatory (Đài Thiên Văn Thiên Đình)</div>
+    <div class="world-sub">Nơi các vì sao được đặt tên — và những cái tên đó có quyền năng thật sự</div>
+  </div>
+  <div class="topic-bar"><span class="topic-label">Topic từ vựng:</span>Space & Universe (vũ trụ), Weather (thời tiết), Colors & Light (màu sắc), Time & Calendar (thời gian)</div>
+  <div class="maps">
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 1 — The Stargate Passage (Hành Lang Cổng Sao)</span>
+        <span class="count-badge">2 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Nebula Wisp — khói tinh vân bay lơ lửng</span>
+          <span class="mob-chip">Comet Shard — mảnh sao băng có ý thức</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Parallax — Góc Lệch</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Thực thể tồn tại ở nhiều vị trí cùng lúc. Mỗi khi bạn nhìn thẳng vào nó, nó lại ở chỗ khác.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Phase Shift</span><span class="skill-sep">—</span>Dịch chuyển: Boss micro-shift mỗi 25% HP — mỗi lần kích hoạt 1 effect ngắn 3 từ.</div>
+            <div class="skill-item"><span class="skill-name">Displacement</span><span class="skill-sep">—</span>Lệch vị: Streak Break + Timer Rush 5 giây. Sự dịch chuyển phá vỡ nhịp điệu.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 2 — The Lens Chamber (Buồng Thấu Kính)</span>
+        <span class="count-badge">3 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Nebula Wisp</span>
+          <span class="mob-chip">Comet Shard</span>
+          <span class="mob-chip">Prism Sprite — tinh linh ánh sáng khúc xạ</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Umbra — Vùng Tối</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Bóng tối sống — không phải thiếu ánh sáng mà là sự hiện diện của bóng tối thuần túy.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Eclipse</span><span class="skill-sep">—</span>Nhật thực: Shield Disable 4 từ. Bóng tối che phủ lớp bảo vệ.</div>
+            <div class="skill-item"><span class="skill-name">Dark Pull</span><span class="skill-sep">—</span>Hút vào bóng tối: Mana Burn 35% + Streak Cap max x3 trong 4 từ.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 3 — The Void Throne (Ngai Vàng Hư Không)</span>
+        <span class="count-badge">4 quái thường + 1 final boss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Nebula Wisp</span>
+          <span class="mob-chip">Comet Shard</span>
+          <span class="mob-chip">Prism Sprite</span>
+          <span class="mob-chip">Void Tendril — xúc tu từ hư không</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Solaris the Dying Star — Ngôi Sao Hấp Hối</div>
+            <span class="boss-type final">Final Boss</span>
+          </div>
+          <div class="boss-desc">Từng là ngôi sao sáng nhất bầu trời — giờ đang trong giai đoạn sụp đổ. Càng gần chết càng nguy hiểm, như một ngôi sao phát nổ thành siêu tân tinh.</div>
+          <div class="phase-label p1">Phase 1 — &gt;50% HP: Fading Light</div>
+          <div class="skill-list" style="margin-bottom:8px">
+            <div class="skill-item"><span class="skill-name">Solar Flare</span><span class="skill-sep">—</span>Bão lửa mặt trời: Damage Amp boss ×1.5 trong 3 từ. Tia năng lượng đột ngột.</div>
+            <div class="skill-item"><span class="skill-name">Gravity Well</span><span class="skill-sep">—</span>Giếng hấp dẫn: Timer Rush 20% + Mana Drain -2/hit. Trọng lực kéo mọi thứ chậm lại.</div>
+            <div class="skill-item"><span class="skill-name">Radiation</span><span class="skill-sep">—</span>Bức xạ: Poison 7 HP/4 giây + Heal Reduction 50%. Phóng xạ cản trở hồi phục.</div>
+          </div>
+          <div class="phase-label p2">Phase 2 — &lt;50% HP: Supernova</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Collapse</span><span class="skill-sep">—</span>Sụp đổ: Shield Break ngay lập tức + Armor Pierce 50% trong 4 từ. Trọng lực vỡ vụn.</div>
+            <div class="skill-item"><span class="skill-name">Solar Flare+</span><span class="skill-sep">—</span>Dame ×2 + Critical Hit 25% cho boss trong 3 từ. Tia bức xạ cực mạnh.</div>
+            <div class="skill-item"><span class="skill-name">Event Horizon</span><span class="skill-sep">—</span>Chân trời sự kiện: Heal Block + Shield Disable đồng thời trong 4 từ. Không có đường thoát.</div>
+            <div class="skill-item"><span class="skill-name">Final Collapse</span><span class="skill-sep">—</span>Boss &lt;10% HP: Tất cả skill kích hoạt cùng lúc 1 lần. Siêu tân tinh cuối cùng.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="world w5">
+  <div class="world-header">
+    <div class="world-title">Map 5 — The Merchant's Labyrinth (Mê Cung Thương Nhân)</div>
+    <div class="world-sub">Thị trường ngầm nơi mọi thứ đều có giá — kể cả những thứ không nên bán</div>
+  </div>
+  <div class="topic-bar"><span class="topic-label">Topic từ vựng:</span>Jobs & Professions (nghề nghiệp), Money & Finance (tài chính), Clothes & Fashion (thời trang), Transportation (phương tiện)</div>
+  <div class="maps">
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 1 — The Bazaar Gate (Cổng Chợ Phiên)</span>
+        <span class="count-badge">2 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Pickpocket — tên trộm nhỏ nhanh tay</span>
+          <span class="mob-chip">Huckster — kẻ bán hàng giả mạo</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Tollkeeper — Người Thu Phí</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Không ai qua cổng mà không trả tiền. Tollkeeper không quan tâm bạn có tiền không — chỉ quan tâm bạn phải trả.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Toll Charge</span><span class="skill-sep">—</span>Thu phí: Coin Steal 30 mỗi lần boss hit thành công.</div>
+            <div class="skill-item"><span class="skill-name">Debt Curse</span><span class="skill-sep">—</span>Lời nguyền nợ: Broke Penalty bật — khi coin về 0, dame nhận +15%. "Túng thì khổ."</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 2 — The Black Market (Chợ Đen)</span>
+        <span class="count-badge">3 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Pickpocket</span>
+          <span class="mob-chip">Huckster</span>
+          <span class="mob-chip">Debt Collector — gã đòi nợ hung tàn</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">The Broker — Tên Môi Giới</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Không bao giờ tự chiến đấu — thuê người khác làm. Mỗi khi bạn gõ sai, hắn mở ví trả thêm tiền cho đòn tấn công.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Commission</span><span class="skill-sep">—</span>Hoa hồng: Burden — mỗi lần dùng item, boss dame tăng thêm 1 stack.</div>
+            <div class="skill-item"><span class="skill-name">Insider Trade</span><span class="skill-sep">—</span>Giao dịch nội gián: Coin Curse 50% trong 5 từ + Streak Break ngay lập tức.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 3 — The Vault of Greed (Kho Bạc Lòng Tham)</span>
+        <span class="count-badge">4 quái thường + 1 final boss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Pickpocket</span>
+          <span class="mob-chip">Huckster</span>
+          <span class="mob-chip">Debt Collector</span>
+          <span class="mob-chip">Counterfeit Golem — tạo vật từ tiền giả</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Mammon the Gold Tyrant — Bạo Chúa Vàng</div>
+            <span class="boss-type final">Final Boss</span>
+          </div>
+          <div class="boss-desc">Sinh vật được tạo ra từ lòng tham của ngàn thương nhân. Toàn thân là vàng — và nó biết chính xác giá trị của mọi thứ bạn đang có.</div>
+          <div class="phase-label p1">Phase 1 — &gt;50% HP: The Offer</div>
+          <div class="skill-list" style="margin-bottom:8px">
+            <div class="skill-item"><span class="skill-name">Gold Tax</span><span class="skill-sep">—</span>Thuế vàng: Coin Drain 25/gõ sai + Coin Steal 20/boss hit. Tấn công kinh tế liên tục.</div>
+            <div class="skill-item"><span class="skill-name">Inflation</span><span class="skill-sep">—</span>Lạm phát: Skill cost +2 tất cả skill trong 5 từ. Mọi thứ đều đắt hơn.</div>
+            <div class="skill-item"><span class="skill-name">Market Crash</span><span class="skill-sep">—</span>Sụp đổ thị trường: Coin về 0 ngay lập tức + Broke Penalty bật ngay.</div>
+          </div>
+          <div class="phase-label p2">Phase 2 — &lt;50% HP: The Hostile Takeover</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Gold Rush+</span><span class="skill-sep">—</span>Nếu bạn còn coin → boss lifesteal từ coin bạn mất. Coin mất = boss hồi HP.</div>
+            <div class="skill-item"><span class="skill-name">Buyout</span><span class="skill-sep">—</span>Thâu tóm: Mirror — mỗi lần dùng item, boss nhận buff tương đương. Punish item spam.</div>
+            <div class="skill-item"><span class="skill-name">Golden Cage</span><span class="skill-sep">—</span>Lồng vàng: Mana Lock + Shield Disable đồng thời 4 từ. Bị giam trong lồng vàng.</div>
+            <div class="skill-item"><span class="skill-name">Bankruptcy</span><span class="skill-sep">—</span>Boss &lt;10% HP: Coin về 0, mana về 0, Shield về 0 cùng lúc. Phá sản hoàn toàn trước đòn cuối.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="world w6">
+  <div class="world-header">
+    <div class="world-title">Map 6 — The Dreamweave Sanctum (Thánh Địa Dệt Mộng)</div>
+    <div class="world-sub">Ranh giới giữa giấc mơ và thực tại không tồn tại ở đây — và những cơn ác mộng biết cách chiến đấu</div>
+  </div>
+  <div class="topic-bar"><span class="topic-label">Topic từ vựng:</span>Emotions & Feelings (cảm xúc), Human Body (cơ thể), Health & Medicine (sức khỏe), Dream & Sleep (giấc mơ)</div>
+  <div class="maps">
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 1 — The Twilight Shore (Bờ Hoàng Hôn)</span>
+        <span class="count-badge">2 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Sleep Wisp — đom đóm gây ngủ gật</span>
+          <span class="mob-chip">Doubt Shadow — bóng tối của sự hoài nghi</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Somnos — Thần Giấc Ngủ</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Không ác — chỉ muốn bạn ngủ. Tiếng thì thầm của nó khiến mắt nặng hơn mỗi lúc.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Lullaby</span><span class="skill-sep">—</span>Ru ngủ: Stun 2 giây + Mana Drain -1. Tiếng hát làm tê liệt tạm thời.</div>
+            <div class="skill-item"><span class="skill-name">Dream Pull</span><span class="skill-sep">—</span>Kéo vào mộng: Timer Rush 20% — càng buồn ngủ, thời gian càng trôi nhanh.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 2 — The Nightmare Corridor (Hành Lang Ác Mộng)</span>
+        <span class="count-badge">3 quái thường + 1 miniboss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Sleep Wisp</span>
+          <span class="mob-chip">Doubt Shadow</span>
+          <span class="mob-chip">Fear Wraith — hiện thân của nỗi sợ</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Dread — Nỗi Kinh Hoàng</div>
+            <span class="boss-type mini">Miniboss</span>
+          </div>
+          <div class="boss-desc">Không có hình dạng cụ thể — trông như bất cứ thứ gì bạn sợ nhất. Không ai mô tả Dread theo cùng một cách.</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Paralyze</span><span class="skill-sep">—</span>Tê liệt: Streak Break + Delay 2 giây. Sợ hãi khiến cơ thể đóng băng.</div>
+            <div class="skill-item"><span class="skill-name">Creeping Fear</span><span class="skill-sep">—</span>Nỗi sợ bò lan: Wound — dame nhận tăng dần, stack mỗi khi bị hit.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="submap">
+      <div class="submap-header">
+        <span class="submap-name">Map con 3 — The Lucid Core (Lõi Mộng Thanh)</span>
+        <span class="count-badge">4 quái thường + 1 final boss</span>
+      </div>
+      <div class="submap-body">
+        <div class="mob-row">
+          <span class="mob-label">Quái thường</span>
+          <span class="mob-chip">Sleep Wisp</span>
+          <span class="mob-chip">Doubt Shadow</span>
+          <span class="mob-chip">Fear Wraith</span>
+          <span class="mob-chip">Memory Leech — ký sinh trùng ăn ký ức</span>
+        </div>
+        <div class="boss-card">
+          <div class="boss-header">
+            <div class="boss-name">Phantasma the Dream Eater — Kẻ Ăn Giấc Mơ</div>
+            <span class="boss-type final">Final Boss</span>
+          </div>
+          <div class="boss-desc">Sinh vật cổ nhất trong Sanctum — đã ăn đủ giấc mơ của đủ người để hiểu ngôn ngữ tốt hơn bất kỳ ai. Nó biết từ nào khó với bạn nhất.</div>
+          <div class="phase-label p1">Phase 1 — &gt;50% HP: The Sweet Dream</div>
+          <div class="skill-list" style="margin-bottom:8px">
+            <div class="skill-item"><span class="skill-name">Dream Fog</span><span class="skill-sep">—</span>Sương mù mộng: Hide Definition + Heal Reduction 50% đồng thời. Mơ hồ và suy yếu.</div>
+            <div class="skill-item"><span class="skill-name">False Memory</span><span class="skill-sep">—</span>Ký ức giả: Adaptation — từ sai xuất hiện nhiều hơn. "Bạn nhớ sai rồi."</div>
+            <div class="skill-item"><span class="skill-name">Lullaby Wave</span><span class="skill-sep">—</span>Sóng ru ngủ: Stun 1.5 giây + Mana Drain -2. Kế thừa từ Somnos.</div>
+          </div>
+          <div class="phase-label p2">Phase 2 — &lt;50% HP: The True Nightmare</div>
+          <div class="skill-list">
+            <div class="skill-item"><span class="skill-name">Dream Shatter</span><span class="skill-sep">—</span>Giấc mơ vỡ: Shield Break + Streak Break + Mana Burn 50% cùng lúc. Tất cả tích lũy biến mất.</div>
+            <div class="skill-item"><span class="skill-name">Nightmare Loop</span><span class="skill-sep">—</span>Vòng lặp ác mộng: Force Repeat — từ gõ sai phải gõ đúng mới được tiếp tục. Mắc kẹt trong vòng lặp.</div>
+            <div class="skill-item"><span class="skill-name">Soul Devour</span><span class="skill-sep">—</span>Nuốt linh hồn: Lifesteal 30% + Heal Block đồng thời. Ăn sức sống của bạn để hồi của nó.</div>
+            <div class="skill-item"><span class="skill-name">Wake Up</span><span class="skill-sep">—</span>Boss &lt;10% HP: Tất cả debuff đang active tăng intensity tối đa. "Tỉnh dậy đi — cơn ác mộng chưa kết thúc."</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</div>

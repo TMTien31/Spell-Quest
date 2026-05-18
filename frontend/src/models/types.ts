@@ -34,6 +34,9 @@ export type EncounterType = 'gate' | 'enemy' | 'treasure' | 'boss';
 export interface Encounter {
   id: string;
   type: EncounterType;
+  entityId: string;
+  worldName?: string;
+  submapName?: string;
   word: Word;
   enemyHp?: number;
   enemyMaxHp?: number;
@@ -45,7 +48,13 @@ export interface Encounter {
 export interface Level {
   id: number;
   name: string;
-  theme: 'forest' | 'cave' | 'castle';
+  worldName?: string;
+  worldDescription?: string;
+  topicLabel?: string;
+  submapName?: string;
+  submapIndex?: number;
+  worldIndex?: number;
+  theme: 'forest' | 'archive' | 'badlands' | 'cosmic' | 'market' | 'dream' | 'tidal' | 'citadel' | 'carnival' | 'pantheon' | 'cave' | 'castle';
   encounters: Encounter[];
   boss: Encounter;
   completed: boolean;

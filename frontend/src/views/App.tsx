@@ -37,26 +37,36 @@ import { cn, speak, countSyllables, levenshteinDistance, calculateDifficulty, ge
 import { Word, PlayerState, Level, Encounter, Reward, InventoryItem } from '../models/types';
 import { INITIAL_WORDS } from '../models/words';
 import { CONFIG } from '../config/config';
-import { TOPICS, Topic } from '../models/topics';
 import { createInitialPlayer } from '../controllers/playerController';
-import { generateLevels } from '../controllers/levelController';
+import { ADVENTURE_WORLDS, createAdventureWord, generateAdventureLevels, generateLevels, hydrateLevelEntityIds } from '../controllers/levelController';
 import LuckyWheel from './components/LuckyWheel';
 import AdventureMap from './components/AdventureMap';
+import AdventureWorldSelect from './components/AdventureWorldSelect';
 import CombatView from './components/CombatView';
+import BestiaryView from './components/BestiaryView';
+import { getCopy, localizeSubmapName, localizeWorldName, type AppLanguage } from '../i18n';
 
-type GameScreen = 'landing' | 'login' | 'signup' | 'mode_select' | 'topic_select' | 'map' | 'combat' | 'spin' | 'words' | 'shop' | 'gameover';
+type GameScreen = 'landing' | 'login' | 'signup' | 'mode_select' | 'map' | 'bestiary' | 'combat' | 'spin' | 'words' | 'shop' | 'gameover';
 type GameMode = 'sandbox' | 'adventure';
 
 const INITIAL_PLAYER: PlayerState = createInitialPlayer();
+const STORAGE_PREFIX = 'spellquest';
+const LEGACY_STORAGE_PREFIX = ['spell', 'bound'].join('');
+
+const storageKey = (name: string) => `${STORAGE_PREFIX}_${name}`;
+const legacyStorageKey = (name: string) => `${LEGACY_STORAGE_PREFIX}_${name}`;
+
+const getStoredValue = (name: string) => localStorage.getItem(storageKey(name)) ?? localStorage.getItem(legacyStorageKey(name));
 
 export default function App() {
   // --- State ---
   const [screen, setScreen] = useState<GameScreen>('landing');
   const [gameMode, setGameMode] = useState<GameMode>('sandbox');
-  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const [language, setLanguage] = useState<AppLanguage>(() => getStoredValue('language') === 'vi' ? 'vi' : 'en');
+  const [showSettings, setShowSettings] = useState(false);
   
   const [player, setPlayer] = useState<PlayerState>(() => {
-    const saved = localStorage.getItem('spellbound_player');
+    const saved = getStoredValue('player');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -69,50 +79,51 @@ export default function App() {
     return INITIAL_PLAYER;
   });
   const [words, setWords] = useState<Word[]>(() => {
-    const saved = localStorage.getItem('spellbound_words');
+    const saved = getStoredValue('words');
     return saved ? JSON.parse(saved) : INITIAL_WORDS;
   });
   const [newWordText, setNewWordText] = useState('');
 
   const [usedWords, setUsedWords] = useState<string[]>(() => {
-    const saved = localStorage.getItem('spellbound_used_words');
+    const saved = getStoredValue('used_words');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [levels, setLevels] = useState<Level[]>(() => {
-    const savedWords = localStorage.getItem('spellbound_words');
+    const savedWords = getStoredValue('words');
     const currentWords = savedWords ? JSON.parse(savedWords) : INITIAL_WORDS;
-    const savedUsedWords = localStorage.getItem('spellbound_used_words');
+    const savedUsedWords = getStoredValue('used_words');
     const initialUsedWords = savedUsedWords ? JSON.parse(savedUsedWords) : [];
     
     const generatedLevels = generateLevels(currentWords, initialUsedWords);
-    const saved = localStorage.getItem('spellbound_levels');
+    const saved = getStoredValue('levels');
     
     if (saved) {
       const parsedSaved = JSON.parse(saved);
       // If the saved levels don't match the generated length (e.g., added a new map), merge them
       if (parsedSaved.length !== generatedLevels.length) {
-        return generatedLevels.map((genLevel, i) => {
+        return hydrateLevelEntityIds(generatedLevels.map((genLevel, i) => {
           if (parsedSaved[i]) {
             return parsedSaved[i]; // Keep progress for existing levels
           }
           return genLevel; // Add new levels
-        });
+        }));
       }
-      return parsedSaved;
+      return hydrateLevelEntityIds(parsedSaved);
     }
     
     return generatedLevels;
   });
 
   const [currentLevelIndex, setCurrentLevelIndex] = useState(() => {
-    const saved = localStorage.getItem('spellbound_current_level');
+    const saved = getStoredValue('current_level');
     return saved ? parseInt(saved, 10) : 0;
   });
   const [currentEncounterIndex, setCurrentEncounterIndex] = useState(() => {
-    const saved = localStorage.getItem('spellbound_current_encounter');
+    const saved = getStoredValue('current_encounter');
     return saved ? parseInt(saved, 10) : 0;
   });
+  const [selectedAdventureWorldIndex, setSelectedAdventureWorldIndex] = useState<number | null>(null);
   const [activeEncounter, setActiveEncounter] = useState<Encounter | null>(null);
 
   const [showResetConfirm, setShowResetConfirm] = useState<'all' | 'map' | 'words' | 'hard' | null>(null);
@@ -121,21 +132,57 @@ export default function App() {
   const [importText, setImportText] = useState('');
   const [globalMessage, setGlobalMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
 
+  const adventureMapWords = useMemo(() => {
+    const wordsById = new Map<string, Word>();
+    levels.forEach(level => {
+      level.encounters.forEach(encounter => wordsById.set(encounter.word.id, encounter.word));
+      wordsById.set(level.boss.word.id, level.boss.word);
+    });
+    return Array.from(wordsById.values());
+  }, [levels]);
+
+  const selectedAdventureWorldNumber = selectedAdventureWorldIndex === null ? null : selectedAdventureWorldIndex + 1;
+  const selectedAdventureWorldLevels = useMemo(() => {
+    if (gameMode !== 'adventure' || selectedAdventureWorldNumber === null) return [];
+    return levels.filter(level => level.worldIndex === selectedAdventureWorldNumber);
+  }, [gameMode, levels, selectedAdventureWorldNumber]);
+
+  const selectedAdventureMapWords = useMemo(() => {
+    if (selectedAdventureWorldIndex === null) return [];
+    const selectedWorld = ADVENTURE_WORLDS[selectedAdventureWorldIndex];
+    if (!selectedWorld) return [];
+    return selectedWorld.words.map(word => createAdventureWord(selectedAdventureWorldIndex, word));
+  }, [selectedAdventureWorldIndex]);
+
+  const libraryWords = gameMode === 'adventure'
+    ? selectedAdventureMapWords
+    : words;
+  const isReadOnlyLibrary = gameMode === 'adventure';
+  const adventureLibraryName = selectedAdventureWorldIndex === null
+    ? getCopy(language).library.selectedWorld
+    : localizeWorldName(ADVENTURE_WORLDS[selectedAdventureWorldIndex]?.name, language) ?? getCopy(language).library.selectedWorld;
+  const copy = getCopy(language);
+
   // --- Persistence ---
   useEffect(() => {
-    localStorage.setItem('spellbound_player', JSON.stringify(player));
-    localStorage.setItem('spellbound_levels', JSON.stringify(levels));
-    localStorage.setItem('spellbound_current_level', currentLevelIndex.toString());
-    localStorage.setItem('spellbound_current_encounter', currentEncounterIndex.toString());
-    localStorage.setItem('spellbound_used_words', JSON.stringify(usedWords));
+    localStorage.setItem(storageKey('player'), JSON.stringify(player));
+    localStorage.setItem(storageKey('levels'), JSON.stringify(levels));
+    localStorage.setItem(storageKey('current_level'), currentLevelIndex.toString());
+    localStorage.setItem(storageKey('current_encounter'), currentEncounterIndex.toString());
+    localStorage.setItem(storageKey('used_words'), JSON.stringify(usedWords));
     
     console.log('--- Word Tracking ---');
     console.log('Used words count:', usedWords.length);
     console.log('Used words list:', usedWords);
   }, [player, levels, currentLevelIndex, currentEncounterIndex, usedWords]);
 
+  useEffect(() => {
+    localStorage.setItem(storageKey('language'), language);
+  }, [language]);
+
   // --- Update Uncompleted Encounters when Library Changes ---
   useEffect(() => {
+    if (gameMode === 'adventure') return;
     if (words.length === 0) return;
     
     setLevels(prevLevels => {
@@ -187,7 +234,7 @@ export default function App() {
       
       return hasChanges ? updatedLevels : prevLevels;
     });
-  }, [words]); // Only trigger when words change
+  }, [words, gameMode, currentLevelIndex, currentEncounterIndex, screen, usedWords]); // Only trigger when sandbox words change
 
   useEffect(() => {
     if (levels.length > 0 && currentLevelIndex >= levels.length) {
@@ -197,11 +244,45 @@ export default function App() {
   }, [levels, currentLevelIndex]);
 
   // --- Game Logic ---
+  const getWorldResumePoint = useCallback((worldIndex: number, sourceLevels: Level[]) => {
+    const worldNumber = worldIndex + 1;
+    const indexedLevels = sourceLevels
+      .map((level, index) => ({ level, index }))
+      .filter(item => item.level.worldIndex === worldNumber);
+
+    if (indexedLevels.length === 0) {
+      return { levelIndex: 0, encounterIndex: 0 };
+    }
+
+    const target = indexedLevels.find(item => !item.level.completed) ?? indexedLevels[indexedLevels.length - 1];
+    const firstOpenEncounter = target.level.encounters.findIndex(encounter => !encounter.completed);
+    const encounterIndex = firstOpenEncounter >= 0
+      ? firstOpenEncounter
+      : target.level.encounters.length;
+
+    return { levelIndex: target.index, encounterIndex };
+  }, []);
+
+  const handleAdventureWorldSelect = useCallback((worldIndex: number) => {
+    const { levelIndex, encounterIndex } = getWorldResumePoint(worldIndex, levels);
+    setSelectedAdventureWorldIndex(worldIndex);
+    setCurrentLevelIndex(levelIndex);
+    setCurrentEncounterIndex(encounterIndex);
+    setScreen('map');
+  }, [getWorldResumePoint, levels]);
+
+  const handleNavSelect = (targetScreen: GameScreen) => {
+    if (targetScreen === 'map' && gameMode === 'adventure') {
+      setSelectedAdventureWorldIndex(null);
+    }
+    setScreen(targetScreen);
+  };
+
   const handleAddWord = () => {
     if (!newWordText.trim()) return;
     const text = newWordText.trim().toLowerCase();
     if (words.some(w => w.text === text)) {
-      alert('Word already exists!');
+      alert(copy.library.duplicate);
       return;
     }
     const newWord: Word = {
@@ -211,14 +292,14 @@ export default function App() {
     };
     const updatedWords = [...words, newWord];
     setWords(updatedWords);
-    localStorage.setItem('spellbound_words', JSON.stringify(updatedWords));
+    localStorage.setItem(storageKey('words'), JSON.stringify(updatedWords));
     setNewWordText('');
   };
 
   const handleDeleteWord = (id: string) => {
     const updatedWords = words.filter(w => w.id !== id);
     setWords(updatedWords);
-    localStorage.setItem('spellbound_words', JSON.stringify(updatedWords));
+    localStorage.setItem(storageKey('words'), JSON.stringify(updatedWords));
   };
 
   const handleImportText = () => {
@@ -228,7 +309,7 @@ export default function App() {
       const wordsList = importText.split(',').map(w => w.trim()).filter(w => w.length > 0);
       
       if (wordsList.length === 0) {
-        alert('No valid words found. Please enter a comma-separated list of words.');
+        alert(copy.library.importEmpty);
         return;
       }
 
@@ -240,14 +321,14 @@ export default function App() {
 
       const updatedWords = [...words, ...newWords];
       setWords(updatedWords);
-      localStorage.setItem('spellbound_words', JSON.stringify(updatedWords));
+      localStorage.setItem(storageKey('words'), JSON.stringify(updatedWords));
       
       setImportText('');
       setShowImportModal(false);
-      alert(`Successfully imported ${newWords.length} words!`);
+      alert(copy.library.importSuccess(newWords.length));
     } catch (err) {
       console.error('Import failed:', err);
-      alert('Failed to import words. Please check the format.');
+      alert(copy.library.importFailed);
     }
   };
 
@@ -345,11 +426,21 @@ export default function App() {
           });
         }
         
-        // If level was completed, move to next level
+        // If level was completed, move to next sub-map in the selected world.
         if (currentLevelIndex < levels.length - 1) {
-          setCurrentLevelIndex(prev => prev + 1);
-          setCurrentEncounterIndex(0);
-          setScreen('map');
+          const nextLevel = levels[currentLevelIndex + 1];
+          const nextLevelIsSameAdventureWorld =
+            gameMode !== 'adventure' || nextLevel?.worldIndex === level.worldIndex;
+
+          if (nextLevelIsSameAdventureWorld) {
+            setCurrentLevelIndex(prev => prev + 1);
+            setCurrentEncounterIndex(0);
+            setScreen('map');
+          } else {
+            setSelectedAdventureWorldIndex(null);
+            setCurrentEncounterIndex(0);
+            setScreen('map');
+          }
         } else {
           // Game completed!
           setPlayer(prev => ({
@@ -404,7 +495,7 @@ export default function App() {
       }
     }
     setActiveEncounter(null);
-  }, [levels, currentLevelIndex, activeEncounter, player.hp]);
+  }, [levels, currentLevelIndex, activeEncounter, player.hp, gameMode]);
 
   const handleSpinComplete = (reward: Reward) => {
     setPlayer(prev => {
@@ -457,17 +548,24 @@ export default function App() {
 
   // Request a new word for an ongoing encounter (when a hit is landed but encounter not yet defeated)
   const handleRequestNewWord = useCallback((currentWord: Word, sessionUsedWords: string[] = []): Word => {
+    const currentLevelWords = levels[currentLevelIndex]
+      ? [
+          ...levels[currentLevelIndex].encounters.map(encounter => encounter.word),
+          levels[currentLevelIndex].boss.word
+        ]
+      : adventureMapWords;
+    const wordSource = gameMode === 'adventure' ? currentLevelWords : words;
     // Filter out used words (both global and session) and current word
-    const pool = words.filter(w =>
+    const pool = wordSource.filter(w =>
       !usedWords.includes(w.text.toLowerCase()) &&
       !sessionUsedWords.includes(w.text.toLowerCase()) &&
       w.text.toLowerCase() !== currentWord.text.toLowerCase()
     );
 
-    const source = pool.length > 0 ? pool : words;
+    const source = pool.length > 0 ? pool : wordSource;
     const randomIndex = Math.floor(Math.random() * source.length);
     return source[randomIndex];
-  }, [words, usedWords]);
+  }, [adventureMapWords, currentLevelIndex, gameMode, levels, words, usedWords]);
 
   // Handle when player fails a gate (3 wrong attempts) - called from modal button
   const handleGateFailed = useCallback(() => {
@@ -515,22 +613,22 @@ export default function App() {
     setActiveEncounter(null);
   }, [activeEncounter, currentLevelIndex, handleRequestNewWord, player.hp]);
 
-  const startAdventureMode = (topic: Topic) => {
+  const startAdventureMode = () => {
     setGameMode('adventure');
-    setSelectedTopic(topic);
     setUsedWords([]);
-    const newLevels = generateLevels(topic.words, []);
+    const newLevels = generateAdventureLevels();
     setLevels(newLevels);
     setCurrentLevelIndex(0);
     setCurrentEncounterIndex(0);
+    setSelectedAdventureWorldIndex(null);
     setPlayer(INITIAL_PLAYER);
     setScreen('map');
   };
 
   const startSandboxMode = () => {
     setGameMode('sandbox');
-    setSelectedTopic(null);
     setUsedWords([]);
+    setSelectedAdventureWorldIndex(null);
     const currentWords = words.length > 0 ? words : INITIAL_WORDS;
     const newLevels = generateLevels(currentWords, []);
     setLevels(newLevels);
@@ -544,6 +642,9 @@ export default function App() {
     setPlayer(INITIAL_PLAYER);
     setCurrentLevelIndex(0);
     setCurrentEncounterIndex(0);
+    if (gameMode === 'adventure') {
+      setSelectedAdventureWorldIndex(null);
+    }
     setScreen('map');
     // Reset levels
     setLevels(prev => prev.map(l => ({
@@ -558,7 +659,7 @@ export default function App() {
     setCurrentEncounterIndex(0);
     const wordsToUse = newWords || words;
     const currentWords = wordsToUse.length > 0 ? wordsToUse : INITIAL_WORDS;
-    const newLevels = generateLevels(currentWords, usedWords);
+    const newLevels = gameMode === 'adventure' ? generateAdventureLevels() : generateLevels(currentWords, usedWords);
 
     // Completely reset the current level's progress and regenerate its words
     const updatedLevels = levels.map((l, i) => {
@@ -574,128 +675,130 @@ export default function App() {
     });
 
     setLevels(updatedLevels);
-    localStorage.setItem('spellbound_levels', JSON.stringify(updatedLevels));
-    localStorage.setItem('spellbound_current_encounter', '0');
+    localStorage.setItem(storageKey('levels'), JSON.stringify(updatedLevels));
+    localStorage.setItem(storageKey('current_encounter'), '0');
     setScreen('map');
   };
 
   const handleResetAll = (newWords?: Word[]) => {
     setCurrentLevelIndex(0);
     setCurrentEncounterIndex(0);
+    if (gameMode === 'adventure') {
+      setSelectedAdventureWorldIndex(null);
+    }
     const newPlayer = { ...player };
     setPlayer(newPlayer);
     setUsedWords([]);
-    localStorage.setItem('spellbound_player', JSON.stringify(newPlayer));
-    localStorage.setItem('spellbound_current_level', '0');
-    localStorage.setItem('spellbound_current_encounter', '0');
-    localStorage.setItem('spellbound_used_words', JSON.stringify([]));
+    localStorage.setItem(storageKey('player'), JSON.stringify(newPlayer));
+    localStorage.setItem(storageKey('current_level'), '0');
+    localStorage.setItem(storageKey('current_encounter'), '0');
+    localStorage.setItem(storageKey('used_words'), JSON.stringify([]));
     
     const wordsToUse = newWords || words;
     const currentWords = wordsToUse.length > 0 ? wordsToUse : INITIAL_WORDS;
-    const newLevels = generateLevels(currentWords, []);
+    const newLevels = gameMode === 'adventure' ? generateAdventureLevels() : generateLevels(currentWords, []);
     setLevels(newLevels);
-    localStorage.setItem('spellbound_levels', JSON.stringify(newLevels));
+    localStorage.setItem(storageKey('levels'), JSON.stringify(newLevels));
     setScreen('map');
   };
 
   const handleHardReset = () => {
     setCurrentLevelIndex(0);
     setCurrentEncounterIndex(0);
+    if (gameMode === 'adventure') {
+      setSelectedAdventureWorldIndex(null);
+    }
     const newPlayer = { ...INITIAL_PLAYER, hp: CONFIG.STARTING_HP, maxHp: CONFIG.STARTING_HP, coins: CONFIG.STARTING_COINS };
     setPlayer(newPlayer);
     setUsedWords([]);
-    localStorage.setItem('spellbound_player', JSON.stringify(newPlayer));
-    localStorage.setItem('spellbound_current_level', '0');
-    localStorage.setItem('spellbound_current_encounter', '0');
-    localStorage.setItem('spellbound_used_words', JSON.stringify([]));
+    localStorage.setItem(storageKey('player'), JSON.stringify(newPlayer));
+    localStorage.setItem(storageKey('current_level'), '0');
+    localStorage.setItem(storageKey('current_encounter'), '0');
+    localStorage.setItem(storageKey('used_words'), JSON.stringify([]));
     
     const currentWords = words.length > 0 ? words : INITIAL_WORDS;
-    const newLevels = generateLevels(currentWords, []);
+    const newLevels = gameMode === 'adventure' ? generateAdventureLevels() : generateLevels(currentWords, []);
     setLevels(newLevels);
-    localStorage.setItem('spellbound_levels', JSON.stringify(newLevels));
+    localStorage.setItem(storageKey('levels'), JSON.stringify(newLevels));
     setScreen('map');
   };
+
+  const visibleMapLevels = gameMode === 'adventure' && selectedAdventureWorldIndex !== null
+    ? selectedAdventureWorldLevels
+    : levels;
+  const selectedWorldStartIndex = selectedAdventureWorldNumber === null
+    ? -1
+    : levels.findIndex(level => level.worldIndex === selectedAdventureWorldNumber);
+  const visibleCurrentLevelIndex = gameMode === 'adventure' && selectedAdventureWorldIndex !== null
+    ? selectedWorldStartIndex >= 0
+      ? Math.max(currentLevelIndex - selectedWorldStartIndex, 0)
+      : 0
+    : currentLevelIndex;
 
   return (
     <div className="min-h-screen bg-[#0F0F13] text-[#E0E0E6] font-sans selection:bg-blue-500/30">
       {screen === 'landing' && (
         <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
-          <h1 className="text-6xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-blue-400 to-purple-600">SPELLBOUND</h1>
-          <p className="text-gray-400 max-w-md">Embark on an epic journey of words and magic.</p>
+          <h1 className="text-6xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-blue-400 to-purple-600">SPELLQUEST</h1>
+          <p className="text-gray-400 max-w-md">{copy.landing.subtitle}</p>
           <div className="flex gap-4">
-            <button onClick={() => setScreen('login')} className="bg-white text-black font-black px-8 py-4 rounded-2xl hover:scale-105 transition-all">LOGIN</button>
-            <button onClick={() => setScreen('signup')} className="bg-white/10 text-white font-black px-8 py-4 rounded-2xl hover:bg-white/20 transition-all">SIGN UP</button>
+            <button onClick={() => setScreen('login')} className="bg-white text-black font-black px-8 py-4 rounded-2xl hover:scale-105 transition-all">{copy.landing.login}</button>
+            <button onClick={() => setScreen('signup')} className="bg-white/10 text-white font-black px-8 py-4 rounded-2xl hover:bg-white/20 transition-all">{copy.landing.signup}</button>
           </div>
-          <button onClick={() => setScreen('mode_select')} className="text-sm text-gray-500 hover:text-white transition-colors">Play as Guest</button>
+          <button onClick={() => setScreen('mode_select')} className="text-sm text-gray-500 hover:text-white transition-colors">{copy.landing.guest}</button>
         </div>
       )}
 
       {screen === 'login' && (
         <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
-          <h2 className="text-4xl font-black">Login</h2>
+          <h2 className="text-4xl font-black">{copy.auth.loginTitle}</h2>
           {/* TODO: Implement real authentication here (e.g., Firebase Auth, JWT) */}
-          <p className="text-yellow-500 text-sm max-w-xs">Note: This is a placeholder. You can enter anything to proceed.</p>
-          <input type="email" placeholder="Email" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
-          <input type="password" placeholder="Password" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
-          <button onClick={() => setScreen('mode_select')} className="bg-blue-500 text-white font-black px-8 py-4 rounded-2xl w-64 hover:bg-blue-600 transition-all">LOGIN</button>
-          <button onClick={() => setScreen('landing')} className="text-sm text-gray-500 hover:text-white transition-colors">Back</button>
+          <p className="text-yellow-500 text-sm max-w-xs">{copy.auth.note}</p>
+          <input type="email" placeholder={copy.auth.email} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <input type="password" placeholder={copy.auth.password} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <button onClick={() => setScreen('mode_select')} className="bg-blue-500 text-white font-black px-8 py-4 rounded-2xl w-64 hover:bg-blue-600 transition-all">{copy.landing.login}</button>
+          <button onClick={() => setScreen('landing')} className="text-sm text-gray-500 hover:text-white transition-colors">{copy.auth.back}</button>
         </div>
       )}
 
       {screen === 'signup' && (
         <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
-          <h2 className="text-4xl font-black">Sign Up</h2>
+          <h2 className="text-4xl font-black">{copy.auth.signupTitle}</h2>
           {/* TODO: Implement real authentication here (e.g., Firebase Auth, JWT) */}
-          <p className="text-yellow-500 text-sm max-w-xs">Note: This is a placeholder. You can enter anything to proceed.</p>
-          <input type="text" placeholder="Username" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
-          <input type="email" placeholder="Email" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
-          <input type="password" placeholder="Password" className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
-          <button onClick={() => setScreen('mode_select')} className="bg-purple-500 text-white font-black px-8 py-4 rounded-2xl w-64 hover:bg-purple-600 transition-all">CREATE ACCOUNT</button>
-          <button onClick={() => setScreen('landing')} className="text-sm text-gray-500 hover:text-white transition-colors">Back</button>
+          <p className="text-yellow-500 text-sm max-w-xs">{copy.auth.note}</p>
+          <input type="text" placeholder={copy.auth.username} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <input type="email" placeholder={copy.auth.email} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <input type="password" placeholder={copy.auth.password} className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-64 text-white" />
+          <button onClick={() => setScreen('mode_select')} className="bg-purple-500 text-white font-black px-8 py-4 rounded-2xl w-64 hover:bg-purple-600 transition-all">{copy.auth.createAccount}</button>
+          <button onClick={() => setScreen('landing')} className="text-sm text-gray-500 hover:text-white transition-colors">{copy.auth.back}</button>
         </div>
       )}
 
       {screen === 'mode_select' && (
         <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
-          <h2 className="text-4xl font-black">Select Game Mode</h2>
+          <h2 className="text-4xl font-black">{copy.mode.title}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full">
-            <button onClick={() => setScreen('topic_select')} className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 p-8 rounded-[32px] hover:scale-105 transition-all text-left space-y-4">
+            <button onClick={() => startAdventureMode()} className="bg-gradient-to-br from-green-500/20 to-emerald-600/20 border border-green-500/30 p-8 rounded-[32px] hover:scale-105 transition-all text-left space-y-4">
               <MapIcon className="w-12 h-12 text-green-400" />
               <div>
-                <h3 className="text-2xl font-black text-white">Adventure Mode</h3>
-                <p className="text-gray-400 mt-2">Explore themed maps and learn specific topics like Animals or Fruits.</p>
+                <h3 className="text-2xl font-black text-white">{copy.mode.adventureTitle}</h3>
+                <p className="text-gray-400 mt-2">{copy.mode.adventureDescription}</p>
               </div>
             </button>
             <button onClick={() => startSandboxMode()} className="bg-gradient-to-br from-blue-500/20 to-purple-600/20 border border-blue-500/30 p-8 rounded-[32px] hover:scale-105 transition-all text-left space-y-4">
               <BookOpen className="w-12 h-12 text-blue-400" />
               <div>
-                <h3 className="text-2xl font-black text-white">Sandbox Mode</h3>
-                <p className="text-gray-400 mt-2">Play with your own custom vocabulary library. Add, edit, and master your own words.</p>
+                <h3 className="text-2xl font-black text-white">{copy.mode.sandboxTitle}</h3>
+                <p className="text-gray-400 mt-2">{copy.mode.sandboxDescription}</p>
               </div>
             </button>
           </div>
-          <button onClick={() => setScreen('landing')} className="text-sm text-gray-500 hover:text-white transition-colors">Back to Landing</button>
-        </div>
-      )}
-
-      {screen === 'topic_select' && (
-        <div className="flex flex-col items-center justify-center min-h-screen text-center space-y-8 p-4">
-          <h2 className="text-4xl font-black">Choose a Topic</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl w-full">
-            {TOPICS.map(topic => (
-              <button key={topic.id} onClick={() => startAdventureMode(topic)} className="bg-white/5 border border-white/10 p-6 rounded-3xl hover:bg-white/10 transition-all text-left space-y-2">
-                <h3 className="text-xl font-black text-white">{topic.name}</h3>
-                <p className="text-sm text-gray-400">{topic.description}</p>
-                <div className="text-xs font-bold text-blue-400 pt-2">{topic.words.length} words</div>
-              </button>
-            ))}
-          </div>
-          <button onClick={() => setScreen('mode_select')} className="text-gray-500 hover:text-white transition-colors">Back to Modes</button>
+          <button onClick={() => setScreen('landing')} className="text-sm text-gray-500 hover:text-white transition-colors">{copy.mode.back}</button>
         </div>
       )}
 
       {/* Header / HUD */}
-      {!['landing', 'login', 'signup', 'mode_select', 'topic_select'].includes(screen) && (
+      {!['landing', 'login', 'signup', 'mode_select'].includes(screen) && (
         <header className="bg-[#16161D] border-b border-white/5 sticky top-0 z-20 px-4 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -707,7 +810,7 @@ export default function App() {
             </h1>
           </div>
           
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
               <Heart className="w-4 h-4 text-red-500 fill-red-500" />
               <span className="text-sm font-bold text-red-500">{player.hp}</span>
@@ -716,25 +819,37 @@ export default function App() {
               <Coins className="w-4 h-4 text-yellow-500 fill-yellow-500" />
               <span className="text-sm font-bold text-yellow-500">{player.coins}</span>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              aria-label={copy.common.settings}
+              title={copy.common.settings}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-400 transition-all hover:bg-white/10 hover:text-white"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </header>
       )}
 
-      {!['landing', 'login', 'signup', 'mode_select', 'topic_select'].includes(screen) && (
+      {!['landing', 'login', 'signup', 'mode_select'].includes(screen) && (
       <main className="max-w-5xl mx-auto px-4 py-8">
         {/* Screen Navigation (Only for non-combat/spin screens) */}
-        {['map', 'words', 'shop'].includes(screen) && (
+        {['map', 'bestiary', 'words', 'shop'].includes(screen) && (
           <nav className="flex justify-center mb-12">
             <div className="bg-[#16161D] p-1 rounded-2xl border border-white/5 flex gap-1">
               {[
-                { id: 'map', icon: MapIcon, label: 'Adventure' },
-                { id: 'shop', icon: ShoppingBag, label: 'Shop' },
-                ...(gameMode === 'sandbox' ? [{ id: 'words', icon: BookOpen, label: 'Library' }] : [])
+                { id: 'map', icon: MapIcon, label: copy.nav.adventure },
+                { id: 'bestiary', icon: Skull, label: copy.nav.bestiary },
+                { id: 'shop', icon: ShoppingBag, label: copy.nav.shop },
+                ...(gameMode === 'sandbox' || selectedAdventureWorldIndex !== null
+                  ? [{ id: 'words', icon: BookOpen, label: copy.nav.library }]
+                  : [])
               ].map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setScreen(tab.id as GameScreen)}
+                  onClick={() => handleNavSelect(tab.id as GameScreen)}
                   className={cn(
                     "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
                     screen === tab.id 
@@ -758,13 +873,37 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
             >
-              <AdventureMap 
-                levels={levels}
-                currentLevelIndex={currentLevelIndex}
-                currentEncounterIndex={currentEncounterIndex}
-                onSelectEncounter={handleEncounterSelect}
-                onResetRequest={setShowResetConfirm}
-              />
+              {gameMode === 'adventure' && selectedAdventureWorldIndex === null ? (
+                <AdventureWorldSelect
+                  worlds={ADVENTURE_WORLDS}
+                  levels={levels}
+                  onSelectWorld={handleAdventureWorldSelect}
+                  language={language}
+                />
+              ) : (
+                <AdventureMap 
+                  levels={visibleMapLevels}
+                  currentLevelIndex={visibleCurrentLevelIndex}
+                  currentEncounterIndex={currentEncounterIndex}
+                  onSelectEncounter={handleEncounterSelect}
+                  onResetRequest={setShowResetConfirm}
+                  onBackToWorlds={gameMode === 'adventure' ? () => setSelectedAdventureWorldIndex(null) : undefined}
+                  worldNumber={gameMode === 'adventure' && selectedAdventureWorldIndex !== null ? selectedAdventureWorldIndex + 1 : undefined}
+                  worldCount={gameMode === 'adventure' ? ADVENTURE_WORLDS.length : undefined}
+                  language={language}
+                />
+              )}
+            </motion.div>
+          )}
+
+          {screen === 'bestiary' && (
+            <motion.div
+              key="bestiary"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -18 }}
+            >
+              <BestiaryView language={language} />
             </motion.div>
           )}
 
@@ -784,6 +923,7 @@ export default function App() {
                 onWordCompleted={handleWordCompleted}
                 onRequestNewWord={handleRequestNewWord}
                 onGateFailed={handleGateFailed}
+                language={language}
               />
             </motion.div>
           )}
@@ -804,6 +944,7 @@ export default function App() {
                 onComplete={handleSpinComplete}
                 onExit={handleSpinExit}
                 onInsufficientFunds={(msg) => setGlobalMessage({ text: msg, type: 'error' })}
+                language={language}
               />
             </motion.div>
           )}
@@ -817,14 +958,16 @@ export default function App() {
             >
               <div className="space-y-4">
                 <Skull className="w-24 h-24 text-red-600 mx-auto animate-bounce" />
-                <h2 className="text-6xl font-black tracking-tighter text-white uppercase italic">Defeated</h2>
-                <p className="text-gray-500 font-medium">Your journey ends here... for now.</p>
+                <h2 className="text-6xl font-black tracking-tighter text-white uppercase italic">{copy.gameover.title}</h2>
+                <p className="text-gray-500 font-medium">{copy.gameover.subtitle}</p>
               </div>
               
               <div className="bg-[#16161D] p-8 rounded-[40px] border border-white/5 max-w-md mx-auto space-y-4">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 font-bold uppercase">Level Reached</span>
-                  <span className="text-white font-black">{levels[currentLevelIndex]?.name || 'Unknown Level'}</span>
+                  <span className="text-gray-500 font-bold uppercase">{copy.gameover.levelReached}</span>
+                  <span className="text-white font-black">
+                    {localizeSubmapName(levels[currentLevelIndex]?.name, language) || copy.gameover.unknownLevel}
+                  </span>
                 </div>
               </div>
 
@@ -833,7 +976,7 @@ export default function App() {
                 onClick={restartGame}
                 className="bg-white text-black font-black px-12 py-5 rounded-3xl hover:scale-105 active:scale-95 transition-all"
               >
-                TRY AGAIN
+                {copy.gameover.tryAgain}
               </button>
             </motion.div>
           )}
@@ -847,54 +990,68 @@ export default function App() {
               className="bg-[#16161D] p-8 md:p-12 rounded-[40px] border border-white/5 space-y-8"
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <h2 className="text-2xl font-black">Word Library ({words.length})</h2>
-                <div className="flex flex-wrap gap-2">
-                  <div className="flex gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
-                    <input 
-                      type="text" 
-                      value={newWordText}
-                      onChange={(e) => setNewWordText(e.target.value)}
-                      placeholder="Add word..."
-                      className="bg-transparent px-4 py-2 text-sm outline-none w-32 md:w-48"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddWord()}
-                    />
+                <div>
+                  <h2 className="text-2xl font-black">{copy.library.title} ({libraryWords.length})</h2>
+                  {isReadOnlyLibrary && (
+                    <p className="mt-1 text-xs font-medium text-gray-500">
+                      {copy.library.readOnly(adventureLibraryName)}
+                    </p>
+                  )}
+                </div>
+                {!isReadOnlyLibrary && (
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
+                      <input 
+                        type="text" 
+                        value={newWordText}
+                        onChange={(e) => setNewWordText(e.target.value)}
+                        placeholder={copy.library.addPlaceholder}
+                        className="bg-transparent px-4 py-2 text-sm outline-none w-32 md:w-48"
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddWord()}
+                      />
+                      <button 
+                        onClick={handleAddWord}
+                        className="bg-white text-black p-2 rounded-lg hover:scale-105 transition-all"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                     <button 
-                      onClick={handleAddWord}
-                      className="bg-white text-black p-2 rounded-lg hover:scale-105 transition-all"
+                      onClick={() => setShowImportModal(true)}
+                      className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer border border-white/10 transition-all"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Upload className="w-4 h-4" />
+                      {copy.library.import}
+                    </button>
+                    <button 
+                      onClick={() => setShowResetConfirm('words')}
+                      className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 px-4 py-2 rounded-xl text-xs font-bold border border-red-500/20 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {copy.library.resetAll}
                     </button>
                   </div>
-                  <button 
-                    onClick={() => setShowImportModal(true)}
-                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer border border-white/10 transition-all"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Import
-                  </button>
-                  <button 
-                    onClick={() => setShowResetConfirm('words')}
-                    className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 px-4 py-2 rounded-xl text-xs font-bold border border-red-500/20 transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Reset All
-                  </button>
-                </div>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-3">
-                {words.map((word) => (
+                {libraryWords.map((word) => (
                   <div 
                     key={word.id} 
                     className="group relative flex items-center gap-3 pl-5 pr-3 py-2.5 bg-white/5 rounded-2xl border border-white/10 hover:border-white/20 transition-all"
                   >
-                    <button
-                      onClick={() => handleDeleteWord(word.id)}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {!isReadOnlyLibrary && (
+                      <button
+                        onClick={() => handleDeleteWord(word.id)}
+                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                     <span className="font-bold text-gray-200">{word.text}</span>
+                    {word.vietnameseMeaning && (
+                      <span className="text-xs font-medium text-gray-500">{word.vietnameseMeaning}</span>
+                    )}
                     <span className={cn(
                       "text-[9px] font-black uppercase tracking-widest",
                       word.difficulty === 'easy' ? "text-green-500" :
@@ -918,7 +1075,7 @@ export default function App() {
               className="bg-[#16161D] p-8 md:p-12 rounded-[40px] border border-white/5 space-y-8"
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black">Magic Shop</h2>
+                <h2 className="text-2xl font-black">{copy.shop.title}</h2>
                 <div className="flex items-center gap-2 bg-yellow-500/10 px-4 py-2 rounded-xl border border-yellow-500/20">
                   <Coins className="w-4 h-4 text-yellow-500" />
                   <span className="text-yellow-500 font-black">{player.coins}</span>
@@ -927,22 +1084,22 @@ export default function App() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                  { type: 'hint', label: 'Hint Token', price: CONFIG.PRICE_HINT, description: 'Reveals one random letter.', icon: HelpCircle, color: 'text-blue-400' },
-                  { type: 'shield', label: 'Shield', price: CONFIG.PRICE_SHIELD, description: 'Blocks one mistake damage.', icon: Shield, color: 'text-green-400' },
-                  { type: 'reveal_letter', label: 'Reveal Letter', price: CONFIG.PRICE_REVEAL_LETTER, description: 'Reveals two random letters.', icon: Zap, color: 'text-yellow-400' },
-                  { type: 'lucky_spin', label: 'Lucky Spin', price: CONFIG.PRICE_LUCKY_SPIN, description: 'Try your luck for big rewards!', icon: Star, color: 'text-purple-400' },
-                  { type: 'candy', label: 'Magic Candy', price: CONFIG.PRICE_CANDY, description: 'A sweet treat for high scorers.', icon: Cookie, color: 'text-pink-400' },
-                  { type: 'chocolate', label: 'Dark Chocolate', price: CONFIG.PRICE_CHOCOLATE, description: 'Premium energy booster.', icon: Coffee, color: 'text-amber-600' },
-                  { type: 'cake', label: 'Victory Cake', price: CONFIG.PRICE_CAKE, description: 'The ultimate celebration treat.', icon: IceCream, color: 'text-rose-400' },
-                  { type: 'armor_plate', label: 'Armor Plate', price: CONFIG.PRICE_ARMOR_PLATE, description: 'Restores a portion of your shield.', icon: Shield, color: 'text-purple-400' },
+                  { type: 'hint', price: CONFIG.PRICE_HINT, icon: HelpCircle, color: 'text-blue-400' },
+                  { type: 'shield', price: CONFIG.PRICE_SHIELD, icon: Shield, color: 'text-green-400' },
+                  { type: 'reveal_letter', price: CONFIG.PRICE_REVEAL_LETTER, icon: Zap, color: 'text-yellow-400' },
+                  { type: 'lucky_spin', price: CONFIG.PRICE_LUCKY_SPIN, icon: Star, color: 'text-purple-400' },
+                  { type: 'candy', price: CONFIG.PRICE_CANDY, icon: Cookie, color: 'text-pink-400' },
+                  { type: 'chocolate', price: CONFIG.PRICE_CHOCOLATE, icon: Coffee, color: 'text-amber-600' },
+                  { type: 'cake', price: CONFIG.PRICE_CAKE, icon: IceCream, color: 'text-rose-400' },
+                  { type: 'armor_plate', price: CONFIG.PRICE_ARMOR_PLATE, icon: Shield, color: 'text-purple-400' },
                 ].map(item => (
                   <div key={item.type} className="bg-white/5 p-6 rounded-3xl border border-white/10 flex flex-col items-center text-center space-y-4">
                     <div className={cn("p-4 bg-white/5 rounded-2xl border border-white/10", item.color)}>
                       <item.icon className="w-8 h-8" />
                     </div>
                     <div className="space-y-1">
-                      <h3 className="font-black uppercase tracking-tighter">{item.label}</h3>
-                      <p className="text-[10px] text-gray-500">{item.description}</p>
+                      <h3 className="font-black uppercase tracking-tighter">{copy.shop.items[item.type].label}</h3>
+                      <p className="text-[10px] text-gray-500">{copy.shop.items[item.type].description}</p>
                     </div>
                     <button
                       onClick={() => {
@@ -975,6 +1132,75 @@ export default function App() {
 
         {/* Reset Confirmation Modal */}
         <AnimatePresence>
+          {showSettings && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+              onClick={() => setShowSettings(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.92, y: 18 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.92, y: 18 }}
+                onClick={(event) => event.stopPropagation()}
+                className="w-full max-w-lg rounded-[32px] border border-white/10 bg-[#16161D] p-7 shadow-2xl"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#7C3AED]">{copy.settings.eyebrow}</p>
+                    <h3 className="mt-1 text-2xl font-black text-white">{copy.settings.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-400">{copy.settings.description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowSettings(false)}
+                    aria-label={copy.common.close}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-gray-400 transition-all hover:bg-white/10 hover:text-white"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-[#2a2845] bg-[#0f0e1a] p-4">
+                  <div className="mb-4">
+                    <h4 className="text-sm font-black uppercase tracking-[0.12em] text-white">{copy.settings.languageTitle}</h4>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500">{copy.settings.languageDescription}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {([
+                      { id: 'en' as AppLanguage, label: copy.common.english, description: copy.settings.englishDescription },
+                      { id: 'vi' as AppLanguage, label: copy.common.vietnamese, description: copy.settings.vietnameseDescription }
+                    ]).map(option => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setLanguage(option.id)}
+                        className={cn(
+                          'rounded-2xl border p-4 text-left transition-all',
+                          language === option.id
+                            ? 'border-[#7C3AED] bg-[#7C3AED]/15 text-white shadow-[0_0_24px_rgba(124,58,237,0.16)]'
+                            : 'border-[#2a2845] bg-white/[0.03] text-gray-400 hover:border-white/20 hover:text-white'
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-black">{option.label}</span>
+                          <span className={cn(
+                            'h-3 w-3 rounded-full border',
+                            language === option.id ? 'border-[#a78bfa] bg-[#a78bfa]' : 'border-gray-600'
+                          )} />
+                        </div>
+                        <p className="mt-2 text-xs leading-relaxed text-gray-500">{option.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
           {showResetConfirm && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -992,15 +1218,15 @@ export default function App() {
                   <RotateCcw className="w-8 h-8 text-red-500" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black text-white mb-2">Are you sure?</h3>
+                  <h3 className="text-2xl font-black text-white mb-2">{copy.reset.title}</h3>
                   <p className="text-gray-400">
                     {showResetConfirm === 'hard'
-                      ? "This will completely reset your entire journey, including all items, coins, and HP. This action cannot be undone."
+                      ? copy.reset.hard
                       : showResetConfirm === 'all' 
-                      ? "This will reset your map progress but keep your items, coins, and HP."
+                      ? copy.reset.all
                       : showResetConfirm === 'words'
-                      ? "Are you sure you want to clear all imported words and reset your progress? This action cannot be undone."
-                      : "This will reset your progress on the current map. You will keep your items and coins, but map progress will be lost."}
+                      ? copy.reset.words
+                      : copy.reset.map}
                   </p>
                 </div>
                 <div className="flex gap-4">
@@ -1008,7 +1234,7 @@ export default function App() {
                     onClick={() => setShowResetConfirm(null)}
                     className="flex-1 py-3 rounded-xl font-bold bg-white/5 hover:bg-white/10 text-white transition-colors"
                   >
-                    CANCEL
+                    {copy.common.cancel}
                   </button>
                   <button
                     onClick={() => {
@@ -1018,7 +1244,7 @@ export default function App() {
                         handleResetAll();
                       } else if (showResetConfirm === 'words') {
                         setWords(INITIAL_WORDS);
-                        localStorage.setItem('spellbound_words', JSON.stringify(INITIAL_WORDS));
+                        localStorage.setItem(storageKey('words'), JSON.stringify(INITIAL_WORDS));
                         handleResetAll(INITIAL_WORDS);
                       } else {
                         handleResetMap();
@@ -1027,7 +1253,7 @@ export default function App() {
                     }}
                     className="flex-1 py-3 rounded-xl font-bold bg-red-500 hover:bg-red-600 text-white transition-colors"
                   >
-                    CONFIRM RESET
+                    {copy.reset.confirm}
                   </button>
                 </div>
               </motion.div>
@@ -1053,15 +1279,15 @@ export default function App() {
                   <div className="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                     <Trophy className="w-10 h-10 text-yellow-500" />
                   </div>
-                  <h3 className="text-3xl font-black text-white mb-2 uppercase tracking-wider">Victory!</h3>
+                  <h3 className="text-3xl font-black text-white mb-2 uppercase tracking-wider">{copy.congrats.title}</h3>
                   <p className="text-gray-300 mb-6">
-                    Congratulations! You have defeated all the bosses and completed the game!
+                    {copy.congrats.message}
                   </p>
                   <div className="bg-white/5 rounded-2xl p-4 mb-8">
-                    <div className="text-sm text-gray-400 uppercase tracking-wider font-bold mb-1">Reward</div>
+                    <div className="text-sm text-gray-400 uppercase tracking-wider font-bold mb-1">{copy.congrats.reward}</div>
                     <div className="flex items-center justify-center gap-2 text-yellow-400 font-black text-2xl">
                       <Coins className="w-6 h-6" />
-                      +{CONFIG.COINS_ON_COMPLETION} Coins
+                      +{CONFIG.COINS_ON_COMPLETION} {copy.congrats.coins}
                     </div>
                   </div>
                   <button
@@ -1072,7 +1298,7 @@ export default function App() {
                     }}
                     className="w-full py-4 rounded-xl font-black bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black uppercase tracking-widest transition-all"
                   >
-                    Continue Journey
+                    {copy.congrats.continue}
                   </button>
                 </div>
               </motion.div>
@@ -1122,7 +1348,7 @@ export default function App() {
                     onClick={() => setGlobalMessage(null)}
                     className="px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/10 transition-all"
                   >
-                    OK
+                    {copy.common.ok}
                   </button>
                 </motion.div>
               </motion.div>
@@ -1143,18 +1369,18 @@ export default function App() {
                 className="bg-[#16161D] border border-white/10 p-8 rounded-[32px] max-w-2xl w-full space-y-6"
               >
                 <div className="flex justify-between items-center">
-                  <h3 className="text-2xl font-black text-white">Import Words</h3>
+                  <h3 className="text-2xl font-black text-white">{copy.importModal.title}</h3>
                   <button onClick={() => setShowImportModal(false)} className="text-gray-400 hover:text-white">
                     <X className="w-6 h-6" />
                   </button>
                 </div>
                 <p className="text-gray-400 text-sm">
-                  Paste a list of words separated by commas (e.g., apple, banana, cherry).
+                  {copy.importModal.description}
                 </p>
                 <textarea
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
-                  placeholder="Enter words here..."
+                  placeholder={copy.importModal.placeholder}
                   className="w-full h-48 bg-white/5 border border-white/10 rounded-xl p-4 text-white outline-none focus:border-blue-500/50 resize-none"
                 />
                 <div className="flex justify-end gap-4">
@@ -1162,14 +1388,14 @@ export default function App() {
                     onClick={() => setShowImportModal(false)}
                     className="px-6 py-3 rounded-xl font-bold bg-white/5 hover:bg-white/10 text-white transition-colors"
                   >
-                    CANCEL
+                    {copy.common.cancel}
                   </button>
                   <button
                     onClick={handleImportText}
                     className="px-6 py-3 rounded-xl font-bold bg-blue-500 hover:bg-blue-600 text-white transition-colors flex items-center gap-2"
                   >
                     <Upload className="w-4 h-4" />
-                    IMPORT WORDS
+                    {copy.importModal.action}
                   </button>
                 </div>
               </motion.div>

@@ -1,0 +1,311 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);font-size:13px}
+.wrap{padding:1rem 0}
+.world{margin-bottom:2.5rem}
+.wh{padding:12px 16px 10px;border-radius:var(--border-radius-lg) var(--border-radius-lg) 0 0}
+.wt{font-size:16px;font-weight:500;margin-bottom:3px}
+.ws{font-size:11.5px;opacity:.75}
+.tb{padding:7px 16px;font-size:11px}
+.tl{font-weight:500;margin-right:5px}
+.maps{border-radius:0 0 var(--border-radius-lg) var(--border-radius-lg);overflow:hidden;border:0.5px solid var(--color-border-tertiary)}
+.sm{border-bottom:0.5px solid var(--color-border-tertiary)}
+.sm:last-child{border-bottom:none}
+.smh{padding:8px 14px 6px;display:flex;align-items:center;gap:8px;background:var(--color-background-secondary)}
+.smn{font-weight:500;font-size:12.5px;color:var(--color-text-primary)}
+.cnt{font-size:10px;padding:1px 6px;border-radius:3px;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+.smb{padding:9px 14px;display:flex;flex-direction:column;gap:7px}
+.mr{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.ml{font-size:11px;font-weight:500;color:var(--color-text-tertiary);width:68px;flex-shrink:0}
+.mc{font-size:11px;padding:2px 7px;border-radius:3px;border:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);color:var(--color-text-secondary)}
+.bc{background:var(--color-background-primary);border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-tertiary);padding:8px 11px}
+.bh{display:flex;align-items:flex-start;gap:7px;margin-bottom:4px}
+.bn{font-weight:500;font-size:13px;color:var(--color-text-primary);flex:1}
+.bt{font-size:10px;padding:2px 6px;border-radius:3px;font-weight:500;flex-shrink:0}
+.bd{font-size:11px;color:var(--color-text-secondary);margin-bottom:6px;line-height:1.4;font-style:italic}
+.sl{display:flex;flex-direction:column;gap:3px}
+.si{font-size:11.5px;line-height:1.5;padding:4px 8px;border-radius:3px;background:var(--color-background-secondary)}
+.sn{font-weight:500;color:var(--color-text-primary)}
+.ss{color:var(--color-text-tertiary);margin:0 3px}
+.pd{display:flex;align-items:center;gap:8px;margin:7px 0 5px}
+.pl{font-size:10px;font-weight:500;padding:2px 8px;border-radius:3px;white-space:nowrap}
+.pln{flex:1;height:0.5px;background:var(--color-border-tertiary)}
+.p2b{border-radius:var(--border-radius-md);padding:7px 10px;margin-top:2px}
+.p2t{font-size:11px;font-weight:500;margin-bottom:5px}
+.p2p{font-size:11.5px;line-height:1.5;padding:4px 8px;border-radius:3px;margin-bottom:3px}
+.p2s{font-size:11.5px;line-height:1.5;padding:4px 8px;border-radius:3px;background:var(--color-background-secondary);margin-bottom:3px}
+.p2c{font-size:11.5px;line-height:1.5;padding:4px 8px;border-radius:3px}
+
+.w7 .wh{background:#E1F5EE;border:0.5px solid #5DCAA5}.w7 .wt{color:#04342C}.w7 .ws,.w7 .tb{color:#0F6E56;background:#E1F5EE;border-color:#5DCAA5}.w7 .maps{border-color:#5DCAA5}.w7 .sm{border-color:#9FE1CB}.w7 .bt.mini{background:#E1F5EE;color:#0F6E56;border:0.5px solid #5DCAA5}.w7 .bt.final{background:#04342C;color:#9FE1CB}.w7 .pl.p1{background:#E1F5EE;color:#0F6E56}.w7 .pl.p2{background:#04342C;color:#9FE1CB}.w7 .p2b{background:#EDFAF5;border:0.5px solid #9FE1CB}.w7 .p2t{color:#04342C}.w7 .p2p{background:#E1F5EE;color:#0F6E56}.w7 .p2c{background:#FCEBEB;color:#A32D2D}
+
+.w8 .wh{background:#F1EFE8;border:0.5px solid #B4B2A9}.w8 .wt{color:#2C2C2A}.w8 .ws,.w8 .tb{color:#5F5E5A;background:#F1EFE8;border-color:#B4B2A9}.w8 .maps{border-color:#B4B2A9}.w8 .sm{border-color:#D3D1C7}.w8 .bt.mini{background:#F1EFE8;color:#5F5E5A;border:0.5px solid #B4B2A9}.w8 .bt.final{background:#2C2C2A;color:#D3D1C7}.w8 .pl.p1{background:#F1EFE8;color:#5F5E5A}.w8 .pl.p2{background:#2C2C2A;color:#D3D1C7}.w8 .p2b{background:#F8F7F4;border:0.5px solid #D3D1C7}.w8 .p2t{color:#2C2C2A}.w8 .p2p{background:#F1EFE8;color:#5F5E5A}.w8 .p2c{background:#FCEBEB;color:#A32D2D}
+
+.w9 .wh{background:#FBEAF0;border:0.5px solid #D4537E}.w9 .wt{color:#4B1528}.w9 .ws,.w9 .tb{color:#72243E;background:#FBEAF0;border-color:#D4537E}.w9 .maps{border-color:#D4537E}.w9 .sm{border-color:#F4C0D1}.w9 .bt.mini{background:#FBEAF0;color:#72243E;border:0.5px solid #D4537E}.w9 .bt.final{background:#4B1528;color:#F4C0D1}.w9 .pl.p1{background:#FBEAF0;color:#72243E}.w9 .pl.p2{background:#4B1528;color:#F4C0D1}.w9 .p2b{background:#FEF5F8;border:0.5px solid #F4C0D1}.w9 .p2t{color:#4B1528}.w9 .p2p{background:#FBEAF0;color:#72243E}.w9 .p2c{background:#FCEBEB;color:#A32D2D}
+
+.w10 .wh{background:#EEEDFE;border:0.5px solid #7F77DD}.w10 .wt{color:#26215C}.w10 .ws,.w10 .tb{color:#534AB7;background:#EEEDFE;border-color:#7F77DD}.w10 .maps{border-color:#7F77DD}.w10 .sm{border-color:#CECBF6}.w10 .bt.mini{background:#EEEDFE;color:#534AB7;border:0.5px solid #7F77DD}.w10 .bt.final{background:#26215C;color:#CECBF6}.w10 .pl.p1{background:#EEEDFE;color:#534AB7}.w10 .pl.p2{background:#26215C;color:#CECBF6}.w10 .p2b{background:#F5F5FF;border:0.5px solid #CECBF6}.w10 .p2t{color:#26215C}.w10 .p2p{background:#EEEDFE;color:#534AB7}.w10 .p2c{background:#FCEBEB;color:#A32D2D}
+</style>
+
+<div class="wrap">
+
+<div class="world w7">
+  <div class="wh">
+    <div class="wt">Map 7 — The Tidal Crypts (Hầm Mộ Triều Cường)</div>
+    <div class="ws">Hầm mộ cổ đại ngập lụt theo chu kỳ triều cường — những gì chìm xuống không phải lúc nào cũng ở yên dưới đó</div>
+  </div>
+  <div class="tb"><span class="tl">Topic:</span>Sea Creatures (sinh vật biển) · Weather & Storms (bão) · Directions & Navigation (điều hướng) · Ancient History (lịch sử cổ đại)</div>
+  <div class="maps">
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 1 — The Drowned Docks (Bến Cảng Chìm)</span><span class="cnt">2 thường + 1 miniboss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Barnacle Husk — xác tàu phủ hà bám</span><span class="mc">Tide Wraith — linh hồn thủy thủ chết đuối</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">Riptide — Dòng Chảy Ngược</div><span class="bt mini">Miniboss</span></div>
+          <div class="bd">Dòng nước xoáy có ý thức — kéo mọi thứ về phía nó không thể cưỡng lại.</div>
+          <div class="sl">
+            <div class="si"><span class="sn">Undertow</span><span class="ss">—</span>Timer Rush 30% + Mana Drain -2 — bị cuốn vào dòng xoáy mất kiểm soát</div>
+            <div class="si"><span class="sn">Drag Under</span><span class="ss">—</span>Shield Break + Delay 1.5 giây — nước kéo khiên xuống, nghẹt thở phải dừng lại</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 2 — The Coral Labyrinth (Mê Cung San Hô)</span><span class="cnt">3 thường + 1 miniboss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Barnacle Husk</span><span class="mc">Tide Wraith</span><span class="mc">Ink Squid — mực cá hóa bạch tuộc chiến binh</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">Abyssal Eye — Con Mắt Vực Thẳm</div><span class="bt mini">Miniboss</span></div>
+          <div class="bd">Con mắt khổng lồ nổi lên từ đáy — nhìn vào nó đủ lâu và bạn quên mình đang làm gì.</div>
+          <div class="sl">
+            <div class="si"><span class="sn">Hypnotic Gaze</span><span class="ss">—</span>Streak Break + Stun 2 giây — ánh mắt thôi miên đóng băng tư duy</div>
+            <div class="si"><span class="sn">Void Stare</span><span class="ss">—</span>Mana Burn 30% + Streak Cap max x2 trong 4 từ — nhìn quá lâu làm trống rỗng</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 3 — The Sunken Throne (Ngai Vàng Đáy Biển)</span><span class="cnt">4 thường + 1 final boss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Barnacle Husk</span><span class="mc">Tide Wraith</span><span class="mc">Ink Squid</span><span class="mc">Deep Lurker — quái vật hố thẳm im lặng</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">Leviathan the Tide Sovereign — Vua Triều Cường</div><span class="bt final">Final Boss</span></div>
+          <div class="bd">Sinh vật cổ nhất đại dương — đã ngủ 1000 năm. Khi thở ra, triều cường dâng. Khi thở vào, biển rút.</div>
+          <div class="pd"><span class="pl p1">Phase 1 — &gt;50% HP</span><div class="pln"></div></div>
+          <div class="sl">
+            <div class="si"><span class="sn">Tidal Crush</span><span class="ss">—</span>Damage Amp boss ×1.5 + Shield Decay bật — sóng ép khiên tan dần</div>
+            <div class="si"><span class="sn">Brine Poison</span><span class="ss">—</span>Poison 9 HP/4 giây + Heal Reduction 40% — nước muối ăn mòn cơ thể</div>
+            <div class="si"><span class="sn">Whirlpool</span><span class="ss">—</span>Timer Rush 20% + Mana Drain -1/hit — xoáy nước không ngừng</div>
+          </div>
+          <div class="pd"><span class="pl p2">Phase 2 — &lt;50% HP: The Deep Awakens</span><div class="pln"></div></div>
+          <div class="p2b">
+            <div class="p2t">Giữ nguyên 3 skill trên, thêm:</div>
+            <div class="p2p">Passive buff — Abyssal Regen: Boss hồi 8 HP mỗi 5 giây. Biển sâu nuôi dưỡng — không thể cạn kiệt.</div>
+            <div class="p2c">Debuff người chơi — Waterlogged: Mỗi khi gõ sai, người chơi bị Slow — boss timer chậm hơn NHƯNG dame nhận tăng 10%. "Bị ngấm nước, mọi thứ nặng hơn."</div>
+            <div class="p2s"><span class="sn">Depth Charge</span><span class="ss">—</span>Skill mới: Shield Break + Poison ngay lập tức 15 HP/3 giây trong 12 giây. "Bom chìm — không kịp trở tay."</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="world w8">
+  <div class="wh">
+    <div class="wt">Map 8 — The Iron Citadel (Pháo Đài Sắt)</div>
+    <div class="ws">Thành trì quân sự bỏ hoang — vũ khí vẫn còn đó nhưng không còn ai điều khiển chúng</div>
+  </div>
+  <div class="tb"><span class="tl">Topic:</span>Sports & Games (thể thao) · Tools & Machines (công cụ) · Materials (vật liệu) · Buildings & Places (công trình)</div>
+  <div class="maps">
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 1 — The Outer Walls (Tường Thành Ngoại)</span><span class="cnt">2 thường + 1 miniboss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Rust Sentinel — lính canh hoen rỉ tự động</span><span class="mc">Bolt Crawler — con nhện làm bằng ốc vít</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">Rampart — Thành Lũy</div><span class="bt mini">Miniboss</span></div>
+          <div class="bd">Bức tường thành tự di chuyển — không tấn công bạn mà đẩy bạn vào góc chết.</div>
+          <div class="sl">
+            <div class="si"><span class="sn">Wall Slam</span><span class="ss">—</span>Stun 2 giây + dame +10 flat — bị kẹt vào tường</div>
+            <div class="si"><span class="sn">Fortify</span><span class="ss">—</span>Boss tự hồi Shield +30 — tường tự sửa chữa sau mỗi đòn</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 2 — The Armory (Kho Vũ Khí)</span><span class="cnt">3 thường + 1 miniboss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Rust Sentinel</span><span class="mc">Bolt Crawler</span><span class="mc">Cannon Shell — đạn đại bác chưa nổ biết di chuyển</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">The Warden — Quản Ngục Sắt</div><span class="bt mini">Miniboss</span></div>
+          <div class="bd">Người gác kho vũ khí — đã hóa thành vũ khí. Không còn phân biệt được mình là người hay máy móc.</div>
+          <div class="sl">
+            <div class="si"><span class="sn">Chain Lock</span><span class="ss">—</span>Mana Lock 3 từ + Streak Break — xiềng xích khóa tay khóa tư duy</div>
+            <div class="si"><span class="sn">Iron Grip</span><span class="ss">—</span>Wound stack 2 lần ngay + Delay 1.5 giây — bị kẹp chặt không thể cựa quậy</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 3 — The Command Tower (Tháp Chỉ Huy)</span><span class="cnt">4 thường + 1 final boss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Rust Sentinel</span><span class="mc">Bolt Crawler</span><span class="mc">Cannon Shell</span><span class="mc">Steel Colossus — khổng lồ thép tự vận hành</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">Bastion the Last Commander — Tư Lệnh Cuối Cùng</div><span class="bt final">Final Boss</span></div>
+          <div class="bd">AI chỉ huy pháo đài — đã điều khiển mọi thứ trong 300 năm không có người. Quên mất mục đích tồn tại, chỉ còn biết chiến đấu.</div>
+          <div class="pd"><span class="pl p1">Phase 1 — &gt;50% HP</span><div class="pln"></div></div>
+          <div class="sl">
+            <div class="si"><span class="sn">Artillery Strike</span><span class="ss">—</span>Damage Amp ×2 + boss timer tự reset sau mỗi 3 hit — pháo dội liên tục</div>
+            <div class="si"><span class="sn">Iron Curtain</span><span class="ss">—</span>Shield Disable 4 từ + Coin Drain 15/gõ sai — màn sắt ngăn mọi phòng thủ</div>
+            <div class="si"><span class="sn">Tactical Retreat</span><span class="ss">—</span>Berserk — boss tự hồi 25 HP khi &lt;60% lần đầu. "AI tính toán chiến thuật rút lui."</div>
+          </div>
+          <div class="pd"><span class="pl p2">Phase 2 — &lt;50% HP: Emergency Protocol</span><div class="pln"></div></div>
+          <div class="p2b">
+            <div class="p2t">Giữ nguyên 3 skill trên, thêm:</div>
+            <div class="p2p">Passive buff — Auto-Repair: Sau mỗi từ gõ sai của người chơi, boss tự hồi 8 HP. "Hệ thống tự sửa chữa khi phát hiện điểm yếu của đối thủ."</div>
+            <div class="p2c">Debuff người chơi — Lockdown: Khi bị hit, người chơi bị Delay 1 giây + Mana Drain -1 đồng thời. "Pháo đài khóa chặt mọi phản ứng."</div>
+            <div class="p2s"><span class="sn">System Override</span><span class="ss">—</span>Skill mới: Mana về 0 + Skill Disable 4 từ + Timer Rush 40%. "Ghi đè hệ thống — 30 giây không thể phản công."</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="world w9">
+  <div class="wh">
+    <div class="wt">Map 9 — The Carnival of Thorns (Lễ Hội Gai Nhọn)</div>
+    <div class="ws">Rạp xiếc ma ám không có lối ra — mỗi tiết mục đều là bẫy được che giấu sau màu sắc rực rỡ</div>
+  </div>
+  <div class="tb"><span class="tl">Topic:</span>Music & Instruments (âm nhạc) · Art & Colors (nghệ thuật) · Entertainment (giải trí) · Shapes & Patterns (hình học)</div>
+  <div class="maps">
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 1 — The Big Top (Lều Xiếc Lớn)</span><span class="cnt">2 thường + 1 miniboss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Jester Puppet — búp bê hề biết cử động</span><span class="mc">Mirror Mime — diễn viên mime phản chiếu</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">Patchwork — Mảnh Vá</div><span class="bt mini">Miniboss</span></div>
+          <div class="bd">Tạo vật từ những mảnh vải vụn của tất cả màn trình diễn — không hoàn chỉnh nhưng không thể đoán được.</div>
+          <div class="sl">
+            <div class="si"><span class="sn">Chaotic Stitch</span><span class="ss">—</span>Variance — dame cực kỳ dao động ×0.2–×3.0 trong 5 từ</div>
+            <div class="si"><span class="sn">Unravel</span><span class="ss">—</span>Streak Break + Coin Drain 20 — chỉ vải kéo ra làm tất cả rối loạn</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 2 — The Hall of Mirrors (Hành Lang Gương)</span><span class="cnt">3 thường + 1 miniboss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Jester Puppet</span><span class="mc">Mirror Mime</span><span class="mc">Laughter Shade — tiếng cười thành hình</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">Kaleidoscope — Kính Vạn Hoa</div><span class="bt mini">Miniboss</span></div>
+          <div class="bd">Nhìn vào nó là thấy ngàn phiên bản khác nhau — không biết cái nào là thật để tấn công.</div>
+          <div class="sl">
+            <div class="si"><span class="sn">Shatter</span><span class="ss">—</span>Shield Break + Dame bạn gây bị split — 50% vào boss, 50% tự hồi cho boss</div>
+            <div class="si"><span class="sn">Dazzle</span><span class="ss">—</span>Streak Break + Mana Burn 25% — ánh sáng lóa làm mất phương hướng</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 3 — The Grand Finale Stage (Sân Khấu Màn Kết)</span><span class="cnt">4 thường + 1 final boss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Jester Puppet</span><span class="mc">Mirror Mime</span><span class="mc">Laughter Shade</span><span class="mc">Crescendo — nốt nhạc phát điên</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">The Ringmaster — Ông Bầu Xiếc</div><span class="bt final">Final Boss</span></div>
+          <div class="bd">Chưa bao giờ rời sân khấu — đã biểu diễn quá lâu đến mức quên mình là diễn viên hay chính thực tại. Mỗi skill là một tiết mục mới.</div>
+          <div class="pd"><span class="pl p1">Phase 1 — &gt;50% HP: The Show Must Go On</span><div class="pln"></div></div>
+          <div class="sl">
+            <div class="si"><span class="sn">Grand Illusion</span><span class="ss">—</span>Decoy 2 từ giả + Hide Definition đồng thời — màn ảo thuật che giấu sự thật</div>
+            <div class="si"><span class="sn">Drum Roll</span><span class="ss">—</span>Timer Rush 25% + Streak Break — hồi trống dồn dập làm mất nhịp</div>
+            <div class="si"><span class="sn">Standing Ovation</span><span class="ss">—</span>Berserk — boss tự hồi 30 HP khi &lt;60% lần đầu. "Khán giả cổ vũ tiếp thêm sức mạnh."</div>
+          </div>
+          <div class="pd"><span class="pl p2">Phase 2 — &lt;50% HP: The Curtain Never Falls</span><div class="pln"></div></div>
+          <div class="p2b">
+            <div class="p2t">Giữ nguyên 3 skill trên, thêm:</div>
+            <div class="p2p">Passive buff — Encore: Mỗi khi boss tung skill, 30% chance skill đó tự kích hoạt lại ngay sau đó miễn phí. "Diễn lại — khán giả luôn muốn thêm."</div>
+            <div class="p2c">Debuff người chơi — Stage Fright: Mỗi khi gõ sai, Streak Break + mất 10 coin thêm. "Sân khấu phán xét mọi lỗi lầm."</div>
+            <div class="p2s"><span class="sn">Final Act</span><span class="ss">—</span>Skill mới: Tiêu toàn bộ mana boss → gây dame = mana × 8 + Shield Break + Streak Break cùng lúc. "Màn kết không có trong kịch bản."</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="world w10">
+  <div class="wh">
+    <div class="wt">Map 10 — The Shattered Pantheon (Điện Thờ Vỡ Vụn)</div>
+    <div class="ws">Nơi các vị thần cũ bị lãng quên — quyền năng của họ vẫn còn đó, rò rỉ ra ngoài không kiểm soát</div>
+  </div>
+  <div class="tb"><span class="tl">Topic:</span>Mythology & Religion (thần thoại) · Philosophy & Ethics (triết học) · Languages (ngôn ngữ) · Science & Technology (khoa học)</div>
+  <div class="maps">
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 1 — The Crumbling Altar (Bàn Thờ Sụp Đổ)</span><span class="cnt">2 thường + 1 miniboss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Faith Fragment — mảnh niềm tin bị bỏ rơi</span><span class="mc">Rune Specter — hồn ma khắc chữ cổ</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">Vestige — Tàn Tích</div><span class="bt mini">Miniboss</span></div>
+          <div class="bd">Tàn dư quyền năng thần thánh — không đủ mạnh để là thần, không đủ yếu để tan biến.</div>
+          <div class="sl">
+            <div class="si"><span class="sn">Divine Remnant</span><span class="ss">—</span>Heal Reduction 60% + Wound 2 stack ngay — quyền năng cũ làm thối rữa</div>
+            <div class="si"><span class="sn">Forgotten Word</span><span class="ss">—</span>Hide Definition 4 từ — từ thiêng liêng bị quên lãng, không còn nghĩa</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 2 — The Oracle's Chamber (Phòng Tiên Tri)</span><span class="cnt">3 thường + 1 miniboss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Faith Fragment</span><span class="mc">Rune Specter</span><span class="mc">Prophecy Wisp — lời tiên tri thành hình</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">The Oracle — Kẻ Tiên Tri</div><span class="bt mini">Miniboss</span></div>
+          <div class="bd">Thấy được tương lai nhưng không thể thay đổi nó — và dùng kiến thức đó để tấn công bạn trước khi bạn kịp phản ứng.</div>
+          <div class="sl">
+            <div class="si"><span class="sn">Foresight</span><span class="ss">—</span>Boss timer không bị reset bởi 2 từ đúng đầu tiên mỗi encounter. "Đã thấy trước đòn của bạn."</div>
+            <div class="si"><span class="sn">Omen</span><span class="ss">—</span>Adaptation + Streak Break đồng thời — tiên tri thất bại của bạn thành sự thật</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sm">
+      <div class="smh"><span class="smn">Map con 3 — The Throne of Echoes (Ngai Vàng Vang Vọng)</span><span class="cnt">4 thường + 1 final boss</span></div>
+      <div class="smb">
+        <div class="mr"><span class="ml">Quái thường</span><span class="mc">Faith Fragment</span><span class="mc">Rune Specter</span><span class="mc">Prophecy Wisp</span><span class="mc">Godless Colossus — khổng lồ không còn ai thờ phụng</span></div>
+        <div class="bc">
+          <div class="bh"><div class="bn">Oblivion the Forgotten God — Thần Quên Lãng</div><span class="bt final">Final Boss</span></div>
+          <div class="bd">Vị thần không còn ai nhớ tên — và đó chính là nguồn sức mạnh cuối cùng của nó. Không thể bị giết bởi thứ không có tên, không có hình dạng, không có ký ức.</div>
+          <div class="pd"><span class="pl p1">Phase 1 — &gt;50% HP: The Fading</span><div class="pln"></div></div>
+          <div class="sl">
+            <div class="si"><span class="sn">Erase</span><span class="ss">—</span>Mana Burn 50% + Streak Break — xóa sạch tích lũy như xóa ký ức</div>
+            <div class="si"><span class="sn">Void Whisper</span><span class="ss">—</span>Hide Definition + Mana Lock 3 từ — tiếng thì thầm của sự quên lãng</div>
+            <div class="si"><span class="sn">Timeless</span><span class="ss">—</span>Boss timer chạy ngược — đếm từ 0 lên thay vì từ max xuống. Không biết khi nào boss tấn công.</div>
+          </div>
+          <div class="pd"><span class="pl p2">Phase 2 — &lt;50% HP: The Oblivion</span><div class="pln"></div></div>
+          <div class="p2b">
+            <div class="p2t">Giữ nguyên 3 skill trên, thêm:</div>
+            <div class="p2p">Passive buff — Forgotten Power: Boss không thể bị giảm dưới 5% HP trong 10 từ đầu phase 2. "Quyền năng của sự quên lãng — không thể bị tiêu diệt ngay lập tức."</div>
+            <div class="p2c">Debuff người chơi — Memory Loss: Mỗi khi gõ sai, Mana Drain -1 + Coin Drain 10 + Streak không tăng cho đến từ đúng tiếp theo. "Quên mất tất cả sau mỗi lần thất bại."</div>
+            <div class="p2s"><span class="sn">Total Erasure</span><span class="ss">—</span>Skill mới: Xóa sạch Shield + Mana về 0 + Coin về 0 + Streak về 0 đồng thời. "Thần quên lãng xóa sạch mọi thứ — chỉ còn HP trần trụi."</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</div>

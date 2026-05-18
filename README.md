@@ -242,7 +242,7 @@ landing → login/signup/guest → mode_select → topic_select (Adventure) OR m
 ### Screen Descriptions
 
 #### Landing Screen
-- Game title "SPELLBOUND" with gradient logo
+- Game title "SPELLQUEST" with gradient logo
 - **LOGIN** button — leads to placeholder login screen
 - **SIGN UP** button — leads to placeholder signup screen
 - **Play as Guest** link — skips to mode selection
@@ -496,12 +496,12 @@ All game state is saved to `localStorage`:
 
 | Key | Data |
 |-----|------|
-| `spellbound_player` | Full PlayerState (HP, shield, coins, streak, inventory) |
-| `spellbound_levels` | Array of Level objects (encounters, boss status, completion) |
-| `spellbound_current_level` | Current level index (number) |
-| `spellbound_current_encounter` | Current encounter index within the level (number) |
-| `spellbound_used_words` | Array of words already used (to avoid repetition) |
-| `spellbound_words` | Custom word library (Sandbox mode) |
+| `spellquest_player` | Full PlayerState (HP, shield, coins, streak, inventory) |
+| `spellquest_levels` | Array of Level objects (encounters, boss status, completion) |
+| `spellquest_current_level` | Current level index (number) |
+| `spellquest_current_encounter` | Current encounter index within the level (number) |
+| `spellquest_used_words` | Array of words already used (to avoid repetition) |
+| `spellquest_words` | Custom word library (Sandbox mode) |
 
 ---
 

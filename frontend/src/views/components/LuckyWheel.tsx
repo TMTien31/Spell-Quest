@@ -5,6 +5,7 @@ import { Trophy, Zap, Coins, Heart, Shield, HelpCircle, AlertCircle } from 'luci
 import { Reward } from '../../models/types';
 import { cn, getWeightedRandom } from '../../utils/gameUtils';
 import { CONFIG } from '../../config/config';
+import { getCopy, getRewardLabel, type AppLanguage } from '../../i18n';
 
 interface LuckyWheelProps {
   rewards: Reward[];
@@ -14,9 +15,11 @@ interface LuckyWheelProps {
   onComplete: (reward: Reward) => void;
   onExit: () => void;
   onInsufficientFunds: (message: string) => void;
+  language?: AppLanguage;
 }
 
-export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComplete, onExit, onInsufficientFunds }: LuckyWheelProps) {
+export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComplete, onExit, onInsufficientFunds, language = 'en' }: LuckyWheelProps) {
+  const copy = getCopy(language);
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<Reward | null>(null);
@@ -38,7 +41,7 @@ export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComple
     if (isSpinning || hasPendingReward) return;
 
     if (coins < spinPrice) {
-      onInsufficientFunds("You don't have enough coins to spin!");
+      onInsufficientFunds(copy.lucky.insufficient);
       return;
     }
 
@@ -118,16 +121,16 @@ export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComple
     <div className="flex flex-col items-center justify-center space-y-8 p-10 bg-[#16161D] rounded-[48px] border border-white/10 shadow-2xl max-w-lg mx-auto">
       <div className="text-center space-y-2">
         <h2 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600">
-          LUCKY SPIN
+          {copy.lucky.title}
         </h2>
-        <p className="text-gray-500 text-xs font-bold uppercase tracking-[0.3em]">Fortune favors the bold</p>
+        <p className="text-gray-500 text-xs font-bold uppercase tracking-[0.3em]">{copy.lucky.subtitle}</p>
       </div>
 
       {/* Coin Display */}
       <div className="flex items-center gap-2 bg-yellow-500/20 px-4 py-2 rounded-full border border-yellow-500/30">
         <Coins className="w-5 h-5 text-yellow-500" />
         <span className="text-yellow-500 font-black">{coins}</span>
-        <span className="text-yellow-500/70 text-sm">coins</span>
+        <span className="text-yellow-500/70 text-sm">{copy.lucky.coins}</span>
       </div>
 
       <div className="relative w-80 h-80">
@@ -163,7 +166,7 @@ export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComple
                         {getIcon(segment.type)}
                       </div>
                       <span className="text-[6px] font-black uppercase leading-none tracking-tighter drop-shadow-md max-w-[40px]">
-                        {segment.label}
+                        {getRewardLabel(segment, language)}
                       </span>
                     </div>
                   </foreignObject>
@@ -182,7 +185,7 @@ export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComple
             !canSpin ? "opacity-50 cursor-not-allowed" : "hover:scale-110 active:scale-95"
           )}
         >
-          <div className="text-[12px] font-black text-white uppercase tracking-widest group-hover:text-yellow-400 transition-colors">SPIN</div>
+          <div className="text-[12px] font-black text-white uppercase tracking-widest group-hover:text-yellow-400 transition-colors">{copy.lucky.spin}</div>
         </button>
       </div>
 
@@ -193,13 +196,13 @@ export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComple
             animate={{ opacity: 1, scale: 1, y: 0 }}
             className="text-center space-y-3"
           >
-            <div className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em]">Reward Unlocked</div>
-            <div className="text-3xl font-black text-white uppercase tracking-tighter italic">{result.label}</div>
+            <div className="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em]">{copy.lucky.rewardUnlocked}</div>
+            <div className="text-3xl font-black text-white uppercase tracking-tighter italic">{getRewardLabel(result, language)}</div>
             <button
               onClick={handleClaimReward}
               className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-black rounded-xl transition-all"
             >
-              CLAIM REWARD
+              {copy.lucky.claim}
             </button>
           </motion.div>
         )}
@@ -208,7 +211,7 @@ export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComple
       {/* Spin Cost */}
       <div className="text-center">
         <p className="text-gray-500 text-xs">
-          Spin cost: <span className="text-yellow-500 font-bold">{spinPrice}</span> coins
+          {copy.lucky.cost} <span className="text-yellow-500 font-bold">{spinPrice}</span> {copy.lucky.coins}
         </p>
       </div>
 
@@ -221,7 +224,7 @@ export default function LuckyWheel({ rewards, coins, spinPrice, onSpin, onComple
           (isSpinning || hasPendingReward) && "opacity-50 cursor-not-allowed"
         )}
       >
-        EXIT
+        {copy.lucky.exit}
       </button>
     </div>
   );

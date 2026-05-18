@@ -1,6 +1,6 @@
-# Spellbound Frontend
+# SPELLQUEST Frontend
 
-Spellbound is a React + TypeScript web game for vocabulary learning with RPG-style progression.
+SPELLQUEST is a React + TypeScript web game for vocabulary learning with RPG-style progression.
 
 ## Features
 
