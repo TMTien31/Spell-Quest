@@ -5,7 +5,8 @@ import { Word, PlayerState, Encounter, InventoryItem } from '../../models/types'
 import { cn, speak, countSyllables, levenshteinDistance, fetchWordInfo } from '../../utils/gameUtils';
 import { CONFIG } from '../../config/config';
 import { EntityDisplay } from '../../components/EntityDisplay';
-import { entityRegistry } from '../../assets/entities/entityRegistry';
+import { entityRegistry, type EntityConfig } from '../../assets/entities/entityRegistry';
+import { ADVENTURE_WORLDS } from '../../controllers/levelController';
 import {
   getCopy,
   getInventoryDescription,
@@ -47,9 +48,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   const [isLocked, setIsLocked] = useState(false); // Locked out after 3 failed attempts
   const [isAttacking, setIsAttacking] = useState(false); // Prevent button spam during transition
   const [sessionUsedWords, setSessionUsedWords] = useState<string[]>([]); // Track words used in this session to avoid repeats
-
-  // Calculate HP bar width based on hits remaining (each hit = a portion of the HP bar)
-  const hpBarWidth = (hitsRemaining / hitsRequired) * 100;
+  const [focusedInputIndex, setFocusedInputIndex] = useState(0);
 
   // Check if all input fields are filled
   const isInputComplete = userInput.every(c => c !== '');
@@ -68,7 +67,15 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     setRevealedIndices([]);
     setMessage(null);
     setSessionUsedWords([]); // Reset session words for new encounter
+    setFocusedInputIndex(0);
   }, [encounter.word.id]); // Reset when word ID changes (new encounter)
+
+  useEffect(() => {
+    const focusTimer = window.setTimeout(() => {
+      document.getElementById('input-0')?.focus();
+    }, 120);
+    return () => window.clearTimeout(focusTimer);
+  }, [currentWord.id]);
 
   useEffect(() => {
     const loadInfo = async () => {
@@ -195,6 +202,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     if (value && index < currentWord.text.length - 1) {
       const nextInput = document.getElementById(`input-${index + 1}`);
       nextInput?.focus();
+      setFocusedInputIndex(index + 1);
     }
   };
 
@@ -206,6 +214,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
         const prevInput = document.getElementById(`input-${index - 1}`) as HTMLInputElement;
         if (prevInput) {
           prevInput.focus();
+          setFocusedInputIndex(index - 1);
         }
       }
     }
@@ -345,6 +354,15 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   const hasStatusEffects = isShielded || (player.streak ?? 0) > 0 || attempts > 0 || (encounter.type === 'boss' && !isEncounterCompleted);
   const isSubmittedWordCorrect = userInput.join('').toLowerCase() === currentWord.text.toLowerCase();
   const entityConfig = entityRegistry[encounter.entityId] ?? entityRegistry.fallback;
+  const encounterWorld = ADVENTURE_WORLDS.find(world => world.name === encounter.worldName);
+  const combatTheme = encounterWorld?.theme ?? 'default';
+  const roleStyle = getEntityRoleStyle(entityConfig);
+  const roleLabel = entityConfig.role === 'boss'
+    ? entityConfig.bossTier === 'final'
+      ? copy.bestiary.roles.finalBoss
+      : copy.bestiary.roles.miniboss
+    : copy.bestiary.roles.creature;
+  const themeStyle = getCombatThemeStyle(combatTheme);
   const entityState = isEncounterCompleted
     ? 'dead'
     : isSubmitted && isSubmittedWordCorrect
@@ -354,13 +372,15 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
         : 'idle';
 
   return (
-    <div className="mx-auto max-w-3xl overflow-hidden rounded-[24px] bg-[#0f0e1a] pb-4 shadow-2xl shadow-black/30">
+    <div className={cn("relative mx-auto max-w-4xl overflow-hidden rounded-[24px] pb-4 shadow-2xl shadow-black/30", themeStyle.shell)}>
+      <div className={cn("pointer-events-none absolute inset-0 opacity-80", themeStyle.backdrop)} />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.08),transparent_38%)]" />
       {message?.type === 'success' && (
         <div key={message.text} className="success-flash pointer-events-none fixed inset-0 z-50 bg-[rgba(34,197,94,0.08)]" />
       )}
 
       {/* ZONE 1 - HUD */}
-      <div className="bg-[#1a1830] px-[10px] py-3">
+      <div className="relative z-10 bg-[#1a1830]/88 px-[10px] py-3 backdrop-blur">
         <div className="grid grid-cols-3 gap-2">
           <div className="min-w-0">
             <div className="text-[9px] font-bold uppercase text-slate-500">{copy.combat.hp}</div>
@@ -404,7 +424,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="min-h-[26px] border-b border-[#2a2845] bg-[#13122a] px-[10px] py-1"
+            className="relative z-10 min-h-[26px] border-b border-[#2a2845] bg-[#13122a]/90 px-[10px] py-1 backdrop-blur"
           >
             <div className="flex flex-wrap items-center gap-1.5">
               {isShielded && (
@@ -439,10 +459,11 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       {/* ZONE 3 - Enemy */}
       <div
         className={cn(
-          "relative mx-[10px] mt-2 overflow-hidden rounded-2xl border bg-[#1e1c35] p-3",
-          encounter.type === 'boss' ? "border-[#7f1d1d] bg-[#1f1215]" : "border-[#3d3b5e]"
+          "relative z-10 mx-[10px] mt-2 overflow-hidden rounded-2xl border p-4 shadow-xl",
+          roleStyle.card
         )}
       >
+        <div className={cn("pointer-events-none absolute inset-0 opacity-80", roleStyle.glow)} />
         {bossAttacking && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -453,38 +474,64 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
         )}
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
-            {getEncounterIcon(cn('h-5 w-5 shrink-0', bossAttacking && 'animate-bounce text-red-500'))}
-            <div className="min-w-0 text-[11px] font-bold uppercase text-white">{getEncounterTitle()}</div>
+            {getEncounterIcon(cn('h-5 w-5 shrink-0', roleStyle.icon, bossAttacking && 'animate-bounce text-red-500'))}
+            <div>
+              <div className={cn("min-w-0 text-[11px] font-bold uppercase", roleStyle.kicker)}>{getEncounterTitle()}</div>
+              <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">{roleLabel}</div>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {encounter.type === 'boss' && (
-              <span className="rounded-full bg-[#7f1d1d] px-2 py-0.5 text-[9px] font-bold uppercase text-[#fca5a5]">{copy.combat.boss}</span>
+            {entityConfig.role === 'boss' && (
+              <span className={cn("rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase", roleStyle.badge)}>
+                {roleLabel}
+              </span>
             )}
-            <span className="text-[10px] font-bold text-slate-400">{copy.combat.hitsRemaining(hitsRemaining, hitsRequired)}</span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] font-black text-slate-300">
+              HP {hitsRemaining}/{hitsRequired}
+            </span>
           </div>
         </div>
-        <div className="relative z-10 mt-3 flex justify-center">
-          <EntityDisplay
-            entityId={encounter.entityId}
-            size={encounter.type === 'boss' ? 'xl' : 'lg'}
-            state={entityState}
-            className={cn(
-              bossAttacking && 'animate-bounce',
-              isEncounterCompleted && 'opacity-45 grayscale'
-            )}
-          />
+        <div className="relative z-10 mt-4 flex justify-center">
+          <div className={cn("flex items-center justify-center rounded-2xl border bg-[#0f0e1a]/78 p-3 shadow-inner", roleStyle.avatar)}>
+            <EntityDisplay
+              entityId={encounter.entityId}
+              size={entityConfig.bossTier === 'final' ? 'xl' : entityConfig.role === 'boss' ? 'xl' : 'lg'}
+              state={entityState}
+              className={cn(
+                bossAttacking && 'animate-bounce',
+                isEncounterCompleted && 'opacity-45 grayscale'
+              )}
+            />
+          </div>
         </div>
         <div className="relative z-10 mt-2 text-center">
-          <div className="text-sm font-black text-white">{localizeEntityName(entityConfig, language)}</div>
-          <p className="mx-auto mt-1 max-w-md text-[10px] font-medium leading-relaxed text-[#94a3b8]">
+          <div className="text-base font-black text-white">{localizeEntityName(entityConfig, language)}</div>
+          <p className="mx-auto mt-1 max-w-2xl text-xs font-medium leading-relaxed text-[#b6c2d5]">
             {localizeEntityDescription(entityConfig, language)}
           </p>
         </div>
-        <div className="relative z-10 mt-2 h-[7px] overflow-hidden rounded-full bg-[#2a2845]">
-          <motion.div
-            className="h-full rounded-full bg-[linear-gradient(90deg,#b91c1c,#f97316)]"
-            animate={{ width: `${hpBarWidth}%` }}
-          />
+        <div className="relative z-10 mt-4 space-y-2">
+          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+            <span>{copy.combat.hp}</span>
+            <span>{copy.combat.hitsRemaining(hitsRemaining, hitsRequired)}</span>
+          </div>
+          <div
+            className="grid rounded-full bg-[#0f0e1a] p-[2px] ring-1 ring-white/10"
+            style={{ gridTemplateColumns: `repeat(${hitsRequired}, minmax(0, 1fr))` }}
+          >
+            {Array.from({ length: hitsRequired }).map((_, index) => {
+              const isFilled = index < hitsRemaining;
+              return (
+                <span
+                  key={index}
+                  className={cn(
+                    "h-3 transition-all first:rounded-l-full last:rounded-r-full",
+                    isFilled ? roleStyle.segment : "bg-[#2a2845]"
+                  )}
+                />
+              );
+            })}
+          </div>
         </div>
         {encounter.type === 'boss' && !isEncounterCompleted && (
           <div className="relative z-10 mt-2 h-1 overflow-hidden rounded-full bg-[#2a2845]">
@@ -504,32 +551,38 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mx-[10px] mt-1.5 flex items-center justify-between gap-3 rounded-xl border border-[#2a2845] bg-[rgba(255,255,255,0.04)] p-3"
+            className="relative z-10 mx-[10px] mt-2 grid gap-4 rounded-2xl border border-[#2a2845] bg-[#121124]/92 p-4 shadow-lg backdrop-blur sm:grid-cols-[1fr_auto]"
           >
             <div className="min-w-0 flex-1 text-left">
-              <p className="text-[13px] font-semibold leading-tight text-[#f1f5f9]">{dictionaryInfo.vietnamese}</p>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-blue-400/20 bg-blue-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-blue-300">
+                  {copy.combat.wordAnalysis}
+                </span>
+                {dictionaryInfo.phonetic && (
+                  <span className="text-sm italic text-[#8da2c3]">{dictionaryInfo.phonetic}</span>
+                )}
+              </div>
+              <p className="text-xl font-black leading-tight text-[#f8fafc] sm:text-2xl">{dictionaryInfo.vietnamese}</p>
               {dictionaryInfo.vietnameseMeaning && (
-                <p className="mt-1 text-[10px] font-medium leading-snug text-slate-500">{dictionaryInfo.vietnameseMeaning}</p>
-              )}
-              {dictionaryInfo.phonetic && (
-                <p className="mt-1 text-[10px] italic text-[#64748b]">{dictionaryInfo.phonetic}</p>
+                <p className="mt-2 text-sm font-medium leading-relaxed text-[#b6c2d5]">{dictionaryInfo.vietnameseMeaning}</p>
               )}
               {dictionaryInfo.meaning && (
-                <p className="mt-1 text-[10px] leading-[1.4] text-[#475569]">
+                <p className="mt-3 rounded-xl border border-white/5 bg-black/15 p-3 text-sm leading-relaxed text-[#7f91ad]">
                   "{dictionaryInfo.meaning.replace(new RegExp(currentWord.text, 'gi'), '___')}"
                 </p>
               )}
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center justify-end gap-2 sm:flex-col sm:justify-center">
               <div className="flex flex-col items-center gap-1">
                 <button
                   onClick={() => speak(currentWord.text)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-400 transition-all hover:bg-blue-500/20"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-500/25 bg-blue-500/12 text-blue-300 transition-all hover:bg-blue-500/20"
+                  aria-label={copy.combat.word}
                 >
-                  <Volume2 className="h-4 w-4" />
+                  <Volume2 className="h-5 w-5" />
                 </button>
-                <span className="text-[8px] font-bold uppercase text-blue-400/70">{copy.combat.word}</span>
+                <span className="text-[9px] font-bold uppercase text-blue-300/80">{copy.combat.word}</span>
               </div>
 
               <div className="flex flex-col items-center gap-1">
@@ -538,11 +591,12 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                     const typed = userInput.join('').toLowerCase();
                     if (typed) speak(typed);
                   }}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition-all hover:bg-white/10"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition-all hover:bg-white/10"
+                  aria-label={copy.combat.you}
                 >
-                  <Volume1 className="h-4 w-4" />
+                  <Volume1 className="h-5 w-5" />
                 </button>
-                <span className="text-[8px] font-bold uppercase text-slate-500">{copy.combat.you}</span>
+                <span className="text-[9px] font-bold uppercase text-slate-500">{copy.combat.you}</span>
               </div>
             </div>
           </motion.div>
@@ -552,11 +606,14 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       {/* ZONE 5 - Input */}
       <div
         className={cn(
-          "mx-[10px] mt-3 rounded-2xl bg-[#1a1830]/70 px-2.5 py-3",
+          "relative z-10 mx-[10px] mt-3 rounded-2xl border border-[#2a2845] bg-[#1a1830]/88 px-3 py-4 shadow-lg backdrop-blur",
           shake && "animate-shake"
         )}
       >
-        <div className="flex flex-wrap justify-center gap-[10px]">
+        <div className="mb-3 text-center text-[10px] font-black uppercase tracking-[0.16em] text-[#64748b]">
+          {copy.combat.word}
+        </div>
+        <div className="flex flex-wrap justify-center gap-3">
           {syllables.map((syllable, sIdx) => {
             const prevCharsCount = syllables.slice(0, sIdx).join('').length;
 
@@ -567,6 +624,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                   const isRevealed = revealedIndices.includes(idx);
                   const showFeedback = isSubmitted;
                   const isCorrectChar = userInput[idx] === char.toLowerCase();
+                  const isFocused = focusedInputIndex === idx;
 
                   return (
                     <div key={idx} className="relative">
@@ -576,19 +634,24 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                         value={userInput[idx] || ''}
                         onChange={(e) => handleInputChange(idx, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(idx, e)}
+                        onFocus={() => setFocusedInputIndex(idx)}
                         disabled={isEncounterCompleted || isLocked || isAttacking}
                         className={cn(
-                          "h-11 min-h-11 w-11 min-w-11 rounded-[10px] border-2 text-center text-base font-bold uppercase text-white outline-none transition-all duration-200",
+                          "h-14 min-h-14 w-12 min-w-12 rounded-xl border-2 text-center text-xl font-black uppercase text-white caret-[#fef08a] outline-none transition-all duration-200 sm:h-14 sm:w-14",
                           showFeedback && isSubmittedWordCorrect && isCorrectChar
-                            ? "border-[#22C55E] bg-[rgba(34,197,94,0.1)] text-[#4ade80]"
+                            ? "border-[#22C55E] bg-[rgba(34,197,94,0.12)] text-[#4ade80] shadow-[0_0_18px_rgba(34,197,94,0.16)]"
                             : showFeedback && !isSubmittedWordCorrect && userInput[idx]
-                              ? "border-[#ef4444] bg-[rgba(239,68,68,0.1)] text-[#f87171]"
+                              ? "border-[#ef4444] bg-[rgba(239,68,68,0.12)] text-[#f87171] shadow-[0_0_18px_rgba(239,68,68,0.16)]"
                               : isRevealed
-                                ? "border-[#F59E0B] bg-[rgba(245,158,11,0.1)] text-[#F59E0B]"
-                                : "border-[#3d3b5e] bg-[#1e1c35] focus:border-[#7C3AED] focus:shadow-[0_0_0_3px_rgba(124,58,237,0.2)]"
+                                ? "border-[#F59E0B] bg-[rgba(245,158,11,0.12)] text-[#F59E0B]"
+                                : "border-[#3d3b5e] bg-[#1e1c35] focus:border-[#a78bfa] focus:bg-[#252142] focus:shadow-[0_0_0_4px_rgba(124,58,237,0.25)]",
+                          isFocused && !userInput[idx] && "border-[#fef08a] shadow-[0_0_0_4px_rgba(250,204,21,0.12)]"
                         )}
                         autoComplete="off"
                       />
+                      {isFocused && !userInput[idx] && !isEncounterCompleted && !isLocked && !isAttacking && (
+                        <span className="pointer-events-none absolute left-1/2 top-1/2 h-7 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#fef08a] input-caret-pulse" />
+                      )}
                     </div>
                   );
                 })}
@@ -597,7 +660,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           })}
         </div>
 
-        <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
           {player.inventory.map(item => (
             <div key={item.type} className="relative">
               <button
@@ -606,16 +669,18 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                 onMouseLeave={() => setHoveredItem(null)}
                 disabled={item.count === 0}
                 className={cn(
-                  "inline-flex h-7 items-center gap-1.5 rounded-[20px] border border-[#3d3b5e] bg-[#1e1c35] px-2 text-[9px] font-bold uppercase text-slate-300 transition-all hover:border-[#7C3AED] hover:text-white disabled:opacity-30 disabled:grayscale",
-                  item.type === 'shield' && isShielded && "border-green-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]"
+                  "group inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#3d3b5e] bg-[#121124] px-3 py-2 text-left text-[10px] font-black uppercase text-slate-200 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#7C3AED] hover:bg-[#1f1b3a] hover:text-white disabled:translate-y-0 disabled:opacity-35 disabled:grayscale",
+                  item.type === 'shield' && isShielded && "border-green-400/70 bg-green-500/10 shadow-[0_0_16px_rgba(16,185,129,0.2)]"
                 )}
               >
-                {item.type === 'hint' && <HelpCircle className="h-3 w-3 text-blue-400" />}
-                {item.type === 'shield' && <Shield className="h-3 w-3 text-green-400" />}
-                {item.type === 'reveal_letter' && <Zap className="h-3 w-3 text-yellow-400" />}
-                {item.type === 'armor_plate' && <Shield className="h-3 w-3 text-purple-400" />}
-                <span>{getInventoryLabel(item.type, language)}</span>
-                <span className="text-slate-500">x{item.count}</span>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5">
+                  {item.type === 'hint' && <HelpCircle className="h-4 w-4 text-blue-300" />}
+                  {item.type === 'shield' && <Shield className="h-4 w-4 text-green-300" />}
+                  {item.type === 'reveal_letter' && <Zap className="h-4 w-4 text-yellow-300" />}
+                  {item.type === 'armor_plate' && <Shield className="h-4 w-4 text-purple-300" />}
+                </span>
+                <span className="max-w-[128px] leading-tight">{getInventoryLabel(item.type, language)}</span>
+                <span className="ml-auto rounded-full border border-white/10 bg-black/25 px-1.5 py-0.5 text-[9px] text-slate-400">x{item.count}</span>
               </button>
 
               {hoveredItem === item.type && (
@@ -631,7 +696,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
         </div>
       </div>
 
-      <div className="mx-[10px] mt-3 space-y-3">
+      <div className="relative z-10 mx-[10px] mt-3 space-y-3">
 
           <AnimatePresence mode="wait">
             {dictionaryInfo && isEncounterCompleted && (
@@ -755,7 +820,113 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
         .animate-shake {
           animation: shake 0.2s ease-in-out 0s 2;
         }
+        @keyframes input-caret-pulse {
+          0%, 45% { opacity: 1; }
+          46%, 100% { opacity: 0.2; }
+        }
+        .input-caret-pulse {
+          animation: input-caret-pulse 1s steps(1) infinite;
+        }
       `}</style>
     </div>
   );
+}
+
+function getEntityRoleStyle(entity: EntityConfig) {
+  if (entity.role === 'boss' && entity.bossTier === 'final') {
+    return {
+      card: 'border-amber-300/45 bg-[linear-gradient(145deg,rgba(82,49,12,0.9),rgba(31,22,38,0.96))]',
+      glow: 'bg-[radial-gradient(circle_at_50%_28%,rgba(251,191,36,0.24),transparent_45%)]',
+      avatar: 'border-amber-200/30 shadow-[0_0_30px_rgba(251,191,36,0.16)]',
+      badge: 'border-amber-300/35 bg-amber-400/15 text-amber-100',
+      kicker: 'text-amber-100',
+      icon: 'text-amber-300',
+      hp: 'bg-[linear-gradient(90deg,#92400e,#f59e0b,#fde68a)]',
+      segment: 'bg-amber-300'
+    };
+  }
+
+  if (entity.role === 'boss') {
+    return {
+      card: 'border-red-400/45 bg-[linear-gradient(145deg,rgba(69,10,10,0.9),rgba(31,22,38,0.96))]',
+      glow: 'bg-[radial-gradient(circle_at_50%_28%,rgba(248,113,113,0.2),transparent_45%)]',
+      avatar: 'border-red-300/30 shadow-[0_0_28px_rgba(239,68,68,0.16)]',
+      badge: 'border-red-300/35 bg-red-500/15 text-red-100',
+      kicker: 'text-red-100',
+      icon: 'text-red-300',
+      hp: 'bg-[linear-gradient(90deg,#7f1d1d,#ef4444,#fb923c)]',
+      segment: 'bg-red-400'
+    };
+  }
+
+  return {
+    card: 'border-[#3d3b5e] bg-[#1e1c35]/95',
+    glow: 'bg-[radial-gradient(circle_at_50%_28%,rgba(124,58,237,0.12),transparent_45%)]',
+    avatar: 'border-[#4b4870]',
+    badge: 'border-[#3d3b5e] bg-white/5 text-slate-300',
+    kicker: 'text-white',
+    icon: 'text-red-400',
+    hp: 'bg-[linear-gradient(90deg,#b91c1c,#f97316)]',
+    segment: 'bg-orange-400'
+  };
+}
+
+function getCombatThemeStyle(theme: string) {
+  switch (theme) {
+    case 'tidal':
+      return {
+        shell: 'bg-[#071827]',
+        backdrop: 'bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.18),transparent_30%),radial-gradient(circle_at_82%_8%,rgba(14,165,233,0.16),transparent_28%),linear-gradient(180deg,rgba(8,47,73,0.8),rgba(15,14,26,0.98))]'
+      };
+    case 'citadel':
+      return {
+        shell: 'bg-[#151515]',
+        backdrop: 'bg-[radial-gradient(circle_at_20%_10%,rgba(251,146,60,0.13),transparent_28%),linear-gradient(135deg,rgba(41,37,36,0.95),rgba(15,14,26,0.98))]'
+      };
+    case 'carnival':
+      return {
+        shell: 'bg-[#180b22]',
+        backdrop: 'bg-[radial-gradient(circle_at_15%_12%,rgba(244,114,182,0.17),transparent_26%),radial-gradient(circle_at_85%_15%,rgba(250,204,21,0.13),transparent_25%),linear-gradient(160deg,rgba(76,5,25,0.78),rgba(30,27,75,0.8),rgba(15,14,26,0.98))]'
+      };
+    case 'pantheon':
+      return {
+        shell: 'bg-[#111023]',
+        backdrop: 'bg-[radial-gradient(circle_at_50%_0%,rgba(196,181,253,0.22),transparent_34%),radial-gradient(circle_at_10%_70%,rgba(129,140,248,0.12),transparent_28%),linear-gradient(180deg,rgba(30,27,75,0.82),rgba(15,14,26,0.98))]'
+      };
+    case 'forest':
+      return {
+        shell: 'bg-[#081a12]',
+        backdrop: 'bg-[radial-gradient(circle_at_18%_18%,rgba(34,197,94,0.16),transparent_28%),linear-gradient(180deg,rgba(20,83,45,0.55),rgba(15,14,26,0.98))]'
+      };
+    case 'archive':
+      return {
+        shell: 'bg-[#101827]',
+        backdrop: 'bg-[radial-gradient(circle_at_80%_12%,rgba(56,189,248,0.13),transparent_28%),linear-gradient(180deg,rgba(30,41,59,0.7),rgba(15,14,26,0.98))]'
+      };
+    case 'badlands':
+      return {
+        shell: 'bg-[#1f120d]',
+        backdrop: 'bg-[radial-gradient(circle_at_25%_12%,rgba(249,115,22,0.17),transparent_28%),linear-gradient(180deg,rgba(67,20,7,0.72),rgba(15,14,26,0.98))]'
+      };
+    case 'cosmic':
+      return {
+        shell: 'bg-[#080b1f]',
+        backdrop: 'bg-[radial-gradient(circle_at_50%_0%,rgba(96,165,250,0.17),transparent_32%),radial-gradient(circle_at_12%_80%,rgba(167,139,250,0.12),transparent_26%),linear-gradient(180deg,rgba(30,27,75,0.7),rgba(15,14,26,0.98))]'
+      };
+    case 'market':
+      return {
+        shell: 'bg-[#171114]',
+        backdrop: 'bg-[radial-gradient(circle_at_20%_12%,rgba(245,158,11,0.14),transparent_28%),linear-gradient(180deg,rgba(63,37,18,0.62),rgba(15,14,26,0.98))]'
+      };
+    case 'dream':
+      return {
+        shell: 'bg-[#171225]',
+        backdrop: 'bg-[radial-gradient(circle_at_18%_12%,rgba(244,114,182,0.14),transparent_28%),radial-gradient(circle_at_84%_8%,rgba(129,140,248,0.13),transparent_26%),linear-gradient(180deg,rgba(49,46,129,0.55),rgba(15,14,26,0.98))]'
+      };
+    default:
+      return {
+        shell: 'bg-[#0f0e1a]',
+        backdrop: 'bg-[linear-gradient(180deg,rgba(30,28,53,0.5),rgba(15,14,26,0.98))]'
+      };
+  }
 }

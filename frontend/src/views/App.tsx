@@ -799,32 +799,39 @@ export default function App() {
 
       {/* Header / HUD */}
       {!['landing', 'login', 'signup', 'mode_select'].includes(screen) && (
-        <header className="bg-[#16161D] border-b border-white/5 sticky top-0 z-20 px-4 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-blue-500 to-purple-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/20">
+        <header className="sticky top-0 z-20 border-b border-white/5 bg-[#12121a]/95 px-3 py-3 backdrop-blur sm:px-4">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 p-2.5 shadow-lg shadow-blue-500/20">
               <Swords className="text-white w-5 h-5" />
             </div>
-            <h1 className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+            <h1 className="truncate bg-gradient-to-r from-white to-gray-400 bg-clip-text text-xl font-black tracking-tight text-transparent sm:text-2xl">
               SPELLQUEST
             </h1>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
-              <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-              <span className="text-sm font-bold text-red-500">{player.hp}</span>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <div
+              title={`${copy.combat.hp} ${player.hp}/${player.maxHp}`}
+              className="flex h-10 items-center gap-2 rounded-full border border-red-400/20 bg-red-500/10 px-2.5 shadow-[0_0_18px_rgba(239,68,68,0.08)] sm:px-3"
+            >
+              <Heart className="h-4 w-4 fill-red-400 text-red-400" />
+              <span className="text-sm font-black text-red-300">{player.hp}</span>
+              <span className="hidden text-[10px] font-bold text-red-200/50 sm:inline">/{player.maxHp}</span>
             </div>
-            <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
-              <Coins className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-              <span className="text-sm font-bold text-yellow-500">{player.coins}</span>
+            <div
+              title={`${copy.congrats.coins}: ${player.coins}`}
+              className="flex h-10 items-center gap-2 rounded-full border border-yellow-400/20 bg-yellow-500/10 px-2.5 shadow-[0_0_18px_rgba(245,158,11,0.08)] sm:px-3"
+            >
+              <Coins className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              <span className="text-sm font-black text-yellow-300">{player.coins}</span>
             </div>
             <button
               type="button"
               onClick={() => setShowSettings(true)}
               aria-label={copy.common.settings}
               title={copy.common.settings}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-400 transition-all hover:bg-white/10 hover:text-white"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-gray-400 transition-all hover:bg-white/10 hover:text-white"
             >
               <Settings className="h-4 w-4" />
             </button>
@@ -834,11 +841,11 @@ export default function App() {
       )}
 
       {!['landing', 'login', 'signup', 'mode_select'].includes(screen) && (
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-5xl mx-auto px-4 py-6">
         {/* Screen Navigation (Only for non-combat/spin screens) */}
         {['map', 'bestiary', 'words', 'shop'].includes(screen) && (
-          <nav className="flex justify-center mb-12">
-            <div className="bg-[#16161D] p-1 rounded-2xl border border-white/5 flex gap-1">
+          <nav className="mb-6 overflow-x-auto pb-1 sm:mb-8">
+            <div className="mx-auto flex w-max gap-1 rounded-2xl border border-white/5 bg-[#16161D] p-1">
               {[
                 { id: 'map', icon: MapIcon, label: copy.nav.adventure },
                 { id: 'bestiary', icon: Skull, label: copy.nav.bestiary },
@@ -851,7 +858,7 @@ export default function App() {
                   key={tab.id}
                   onClick={() => handleNavSelect(tab.id as GameScreen)}
                   className={cn(
-                    "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
+                    "flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-300 sm:px-6 sm:text-sm",
                     screen === tab.id 
                       ? "bg-white/10 text-white shadow-xl" 
                       : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
@@ -1072,34 +1079,55 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-[#16161D] p-8 md:p-12 rounded-[40px] border border-white/5 space-y-8"
+              className="overflow-hidden rounded-[28px] border border-white/5 bg-[#101018] p-5 shadow-2xl shadow-black/25 sm:p-8 md:p-10"
             >
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black">{copy.shop.title}</h2>
-                <div className="flex items-center gap-2 bg-yellow-500/10 px-4 py-2 rounded-xl border border-yellow-500/20">
-                  <Coins className="w-4 h-4 text-yellow-500" />
-                  <span className="text-yellow-500 font-black">{player.coins}</span>
+              <div className="mb-7 flex flex-col gap-3 border-b border-[#2a2845] pb-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#F59E0B]">{copy.nav.shop}</p>
+                  <h2 className="mt-1 text-2xl font-black text-white">{copy.shop.title}</h2>
+                </div>
+                <div className="flex w-fit items-center gap-2 rounded-xl border border-yellow-500/25 bg-yellow-500/10 px-4 py-2 shadow-[0_0_22px_rgba(245,158,11,0.1)]">
+                  <Coins className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                  <span className="text-lg font-black text-yellow-300">{player.coins}</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {[
-                  { type: 'hint', price: CONFIG.PRICE_HINT, icon: HelpCircle, color: 'text-blue-400' },
-                  { type: 'shield', price: CONFIG.PRICE_SHIELD, icon: Shield, color: 'text-green-400' },
-                  { type: 'reveal_letter', price: CONFIG.PRICE_REVEAL_LETTER, icon: Zap, color: 'text-yellow-400' },
-                  { type: 'lucky_spin', price: CONFIG.PRICE_LUCKY_SPIN, icon: Star, color: 'text-purple-400' },
-                  { type: 'candy', price: CONFIG.PRICE_CANDY, icon: Cookie, color: 'text-pink-400' },
-                  { type: 'chocolate', price: CONFIG.PRICE_CHOCOLATE, icon: Coffee, color: 'text-amber-600' },
-                  { type: 'cake', price: CONFIG.PRICE_CAKE, icon: IceCream, color: 'text-rose-400' },
-                  { type: 'armor_plate', price: CONFIG.PRICE_ARMOR_PLATE, icon: Shield, color: 'text-purple-400' },
-                ].map(item => (
-                  <div key={item.type} className="bg-white/5 p-6 rounded-3xl border border-white/10 flex flex-col items-center text-center space-y-4">
-                    <div className={cn("p-4 bg-white/5 rounded-2xl border border-white/10", item.color)}>
-                      <item.icon className="w-8 h-8" />
+                  { type: 'hint', price: CONFIG.PRICE_HINT, icon: HelpCircle, color: 'text-blue-300', accent: 'border-blue-400/25 bg-blue-500/10', buy: 'from-blue-500 to-cyan-500' },
+                  { type: 'shield', price: CONFIG.PRICE_SHIELD, icon: Shield, color: 'text-green-300', accent: 'border-green-400/25 bg-green-500/10', buy: 'from-green-500 to-emerald-500' },
+                  { type: 'reveal_letter', price: CONFIG.PRICE_REVEAL_LETTER, icon: Zap, color: 'text-yellow-300', accent: 'border-yellow-400/25 bg-yellow-500/10', buy: 'from-yellow-500 to-orange-500' },
+                  { type: 'lucky_spin', price: CONFIG.PRICE_LUCKY_SPIN, icon: Star, color: 'text-purple-300', accent: 'border-purple-400/25 bg-purple-500/10', buy: 'from-purple-500 to-fuchsia-500' },
+                  { type: 'candy', price: CONFIG.PRICE_CANDY, icon: Cookie, color: 'text-pink-300', accent: 'border-pink-400/25 bg-pink-500/10', buy: 'from-pink-500 to-rose-500' },
+                  { type: 'chocolate', price: CONFIG.PRICE_CHOCOLATE, icon: Coffee, color: 'text-amber-300', accent: 'border-amber-600/25 bg-amber-700/10', buy: 'from-amber-700 to-orange-600' },
+                  { type: 'cake', price: CONFIG.PRICE_CAKE, icon: IceCream, color: 'text-rose-300', accent: 'border-rose-400/25 bg-rose-500/10', buy: 'from-rose-500 to-pink-500' },
+                  { type: 'armor_plate', price: CONFIG.PRICE_ARMOR_PLATE, icon: Shield, color: 'text-violet-300', accent: 'border-violet-400/25 bg-violet-500/10', buy: 'from-violet-500 to-indigo-500' },
+                ].map(item => {
+                  const canAfford = player.coins >= item.price;
+                  const ownedCount = player.inventory.find(inventoryItem => inventoryItem.type === item.type)?.count ?? 0;
+
+                  return (
+                  <div
+                    key={item.type}
+                    className={cn(
+                      'group relative flex min-h-[240px] flex-col overflow-hidden rounded-2xl border bg-[#17162a] p-4 transition-all',
+                      canAfford ? 'border-[#2a2845] hover:-translate-y-1 hover:border-white/20 hover:bg-[#1b1931]' : 'border-[#2a2845] opacity-75'
+                    )}
+                  >
+                    <div className={cn('pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full blur-2xl', item.accent)} />
+                    <div className="relative z-10 flex items-start justify-between gap-3">
+                      <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border", item.accent, item.color)}>
+                        <item.icon className="h-6 w-6" />
+                      </div>
+                      {ownedCount > 0 && (
+                        <span className="rounded-full border border-white/10 bg-black/25 px-2 py-1 text-[10px] font-black uppercase text-[#cbd5e1]">
+                          x{ownedCount}
+                        </span>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      <h3 className="font-black uppercase tracking-tighter">{copy.shop.items[item.type].label}</h3>
-                      <p className="text-[10px] text-gray-500">{copy.shop.items[item.type].description}</p>
+                    <div className="relative z-10 mt-4 flex-1 space-y-2 text-left">
+                      <h3 className="text-sm font-black uppercase leading-tight tracking-tight text-white">{copy.shop.items[item.type].label}</h3>
+                      <p className="text-xs font-medium leading-relaxed text-[#94a3b8]">{copy.shop.items[item.type].description}</p>
                     </div>
                     <button
                       onClick={() => {
@@ -1118,13 +1146,17 @@ export default function App() {
                         }
                       }}
                       disabled={player.coins < item.price}
-                      className="w-full bg-white text-black font-black py-3 rounded-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-20 flex items-center justify-center gap-2"
+                      className={cn(
+                        'relative z-10 mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r font-black text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-none disabled:bg-white/5 disabled:text-[#64748b] disabled:shadow-none',
+                        canAfford ? item.buy : ''
+                      )}
                     >
-                      <Coins className="w-4 h-4" />
-                      {item.price}
+                      <Coins className="h-4 w-4" />
+                      <span>{item.price}</span>
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </motion.div>
           )}

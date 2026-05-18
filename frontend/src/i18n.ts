@@ -90,6 +90,14 @@ const en = {
     bosses: 'bosses',
     final: 'final',
     found: 'found',
+    searchPlaceholder: 'Search entities...',
+    noResults: 'No entities match this search.',
+    filters: {
+      all: 'All',
+      creature: 'Creatures',
+      miniboss: 'Minibosses',
+      finalBoss: 'Final Bosses'
+    },
     fallbackTitle: 'Arcane Crossroads',
     fallbackDescription: 'General entities and legacy guardians not assigned to a world map.',
     roles: {
@@ -288,6 +296,14 @@ const vi: CopyTree = {
     bosses: 'trùm',
     final: 'trùm cuối',
     found: 'đã tìm thấy',
+    searchPlaceholder: 'Tìm sinh vật...',
+    noResults: 'Không tìm thấy sinh vật phù hợp.',
+    filters: {
+      all: 'Tất cả',
+      creature: 'Sinh vật',
+      miniboss: 'Á trùm',
+      finalBoss: 'Trùm cuối'
+    },
     fallbackTitle: 'Giao Lộ Huyền Thuật',
     fallbackDescription: 'Những thực thể chung và hộ vệ cũ chưa được gắn vào một bản đồ cụ thể.',
     roles: {
