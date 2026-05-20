@@ -91,7 +91,7 @@ export const BOSS_SKILL_CONFIGS: Record<string, BossSkillConfig[]> = {
         vi: 'Từ Điển Sống quệt mực lên phần gợi nghĩa, chỉ còn trí nhớ dẫn đường cho chữ.'
       },
       trigger: { type: 'onBossAttack', every: 2 },
-      effects: [{ id: 'hideDefinition', durationWords: 3 }]
+      effects: [{ id: 'hideDefinition', durationWords: 2 }]
     },
     {
       id: 'ink_flood',

@@ -132,6 +132,7 @@ export default function App() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [globalMessage, setGlobalMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [deathLevelName, setDeathLevelName] = useState<string | null>(null);
 
   const adventureMapWords = useMemo(() => {
     const wordsById = new Map<string, Word>();
@@ -272,6 +273,31 @@ export default function App() {
     setScreen('map');
   }, [getWorldResumePoint, levels]);
 
+  const handleAdventureWorldReplay = useCallback((worldIndex: number) => {
+    const worldNumber = worldIndex + 1;
+    const regeneratedLevels = generateAdventureLevels();
+    const replayLevels = regeneratedLevels.filter(level => level.worldIndex === worldNumber);
+    const replayWordTexts = new Set((ADVENTURE_WORLDS[worldIndex]?.words ?? []).map(word => word.toLowerCase()));
+    let replayCursor = 0;
+
+    setLevels(prevLevels => prevLevels.map(level => {
+      if (level.worldIndex !== worldNumber) return level;
+      const replacement = replayLevels[replayCursor++];
+      return replacement ?? {
+        ...level,
+        completed: false,
+        encounters: level.encounters.map(encounter => ({ ...encounter, completed: false })),
+        boss: { ...level.boss, completed: false }
+      };
+    }));
+    setUsedWords(prev => prev.filter(word => !replayWordTexts.has(word)));
+    const firstLevelIndex = levels.findIndex(level => level.worldIndex === worldNumber);
+    setSelectedAdventureWorldIndex(worldIndex);
+    setCurrentLevelIndex(firstLevelIndex >= 0 ? firstLevelIndex : 0);
+    setCurrentEncounterIndex(0);
+    setScreen('map');
+  }, [levels]);
+
   const handleNavSelect = (targetScreen: GameScreen) => {
     if (targetScreen === 'map' && gameMode === 'adventure') {
       setSelectedAdventureWorldIndex(null);
@@ -336,7 +362,7 @@ export default function App() {
   const handleEncounterSelect = (encounter: Encounter) => {
     // Check if re-entering a gate that was just failed - if so, generate new word
     let encounterToUse = encounter;
-    if (encounter.type === 'gate' && encounter.hitsRemaining !== undefined && encounter.hitsRemaining < (encounter.hitsRequired ?? 1)) {
+    if (encounter.type !== 'boss' && encounter.hitsRemaining !== undefined && encounter.hitsRemaining < (encounter.hitsRequired ?? 1)) {
       // This gate was failed, need a new word
       const newWord = handleRequestNewWord(encounter.word, []);
 
@@ -366,6 +392,16 @@ export default function App() {
     setScreen('combat');
   };
 
+  const handlePlayerDefeated = useCallback(() => {
+    setDeathLevelName(levels[currentLevelIndex]?.name ?? null);
+    setActiveEncounter(null);
+    setCurrentEncounterIndex(0);
+    if (gameMode === 'adventure') {
+      setSelectedAdventureWorldIndex(null);
+    }
+    setScreen('map');
+  }, [currentLevelIndex, gameMode, levels]);
+
   const handleCombatDamage = useCallback((damage: number, bypassShield: boolean = false) => {
     setPlayer(prev => {
       let finalDamage = damage;
@@ -386,13 +422,19 @@ export default function App() {
         newHp = Math.max(0, newHp - finalDamage);
       }
 
+      if (newHp <= 0 && prev.hp > 0) {
+        window.setTimeout(handlePlayerDefeated, 0);
+      }
+
       return {
         ...prev,
         hp: newHp,
-        shield: newShield
+        shield: newShield,
+        streak: newHp <= 0 ? 0 : prev.streak,
+        coins: newHp <= 0 ? 0 : prev.coins
       };
     });
-  }, []);
+  }, [handlePlayerDefeated]);
 
   const handleCombatComplete = useCallback((success: boolean, stats: { damageDealt: number; damageTaken: number }) => {
     if (success) {
@@ -417,6 +459,9 @@ export default function App() {
       if (activeEncounter?.type === 'boss') {
         level.boss.completed = true;
         level.completed = true;
+        const completedAdventureWorld = gameMode === 'adventure' && typeof level.worldIndex === 'number'
+          ? newLevels.filter(candidate => candidate.worldIndex === level.worldIndex).every(candidate => candidate.completed)
+          : false;
         
         // Add word to used words
         if (activeEncounter.word) {
@@ -427,8 +472,17 @@ export default function App() {
           });
         }
         
-        // If level was completed, move to next sub-map in the selected world.
-        if (currentLevelIndex < levels.length - 1) {
+        if (completedAdventureWorld) {
+          setPlayer(prev => ({
+            ...prev,
+            coins: prev.coins + CONFIG.COINS_ON_COMPLETION
+          }));
+          setSelectedAdventureWorldIndex(null);
+          setCurrentEncounterIndex(0);
+          setScreen('map');
+          setShowCongrats(true);
+          // If level was completed, move to next sub-map in the selected world.
+        } else if (currentLevelIndex < levels.length - 1) {
           const nextLevel = levels[currentLevelIndex + 1];
           const nextLevelIsSameAdventureWorld =
             gameMode !== 'adventure' || nextLevel?.worldIndex === level.worldIndex;
@@ -448,6 +502,7 @@ export default function App() {
             ...prev,
             coins: prev.coins + CONFIG.COINS_ON_COMPLETION
           }));
+          setScreen('map');
           setShowCongrats(true);
         }
       } else {
@@ -490,7 +545,8 @@ export default function App() {
       }));
 
       if (newHp <= 0) {
-        setScreen('gameover');
+        setScreen('map');
+        setDeathLevelName(levels[currentLevelIndex]?.name ?? null);
       } else {
         setScreen('map');
       }
@@ -549,24 +605,36 @@ export default function App() {
 
   // Request a new word for an ongoing encounter (when a hit is landed but encounter not yet defeated)
   const handleRequestNewWord = useCallback((currentWord: Word, sessionUsedWords: string[] = []): Word => {
-    const currentLevelWords = levels[currentLevelIndex]
-      ? [
-          ...levels[currentLevelIndex].encounters.map(encounter => encounter.word),
-          levels[currentLevelIndex].boss.word
-        ]
+    const currentLevel = levels[currentLevelIndex];
+    const adventureWorldIndex = typeof currentLevel?.worldIndex === 'number' ? currentLevel.worldIndex - 1 : selectedAdventureWorldIndex;
+    const adventureWordSource = typeof adventureWorldIndex === 'number' && ADVENTURE_WORLDS[adventureWorldIndex]
+      ? ADVENTURE_WORLDS[adventureWorldIndex].words.map(word => createAdventureWord(adventureWorldIndex, word))
       : adventureMapWords;
-    const wordSource = gameMode === 'adventure' ? currentLevelWords : words;
+    const wordSource = gameMode === 'adventure' ? adventureWordSource : words;
+    const currentWordText = currentWord.text.toLowerCase();
+    const sessionSet = new Set(sessionUsedWords.map(word => word.toLowerCase()));
     // Filter out used words (both global and session) and current word
     const pool = wordSource.filter(w =>
       !usedWords.includes(w.text.toLowerCase()) &&
-      !sessionUsedWords.includes(w.text.toLowerCase()) &&
-      w.text.toLowerCase() !== currentWord.text.toLowerCase()
+      !sessionSet.has(w.text.toLowerCase()) &&
+      w.text.toLowerCase() !== currentWordText
     );
 
-    const source = pool.length > 0 ? pool : wordSource;
+    const nonSessionPool = wordSource.filter(w =>
+      !sessionSet.has(w.text.toLowerCase()) &&
+      w.text.toLowerCase() !== currentWordText
+    );
+    const nonCurrentPool = wordSource.filter(w => w.text.toLowerCase() !== currentWordText);
+    const source = pool.length > 0
+      ? pool
+      : nonSessionPool.length > 0
+      ? nonSessionPool
+      : nonCurrentPool.length > 0
+      ? nonCurrentPool
+      : wordSource;
     const randomIndex = Math.floor(Math.random() * source.length);
     return source[randomIndex];
-  }, [adventureMapWords, currentLevelIndex, gameMode, levels, words, usedWords]);
+  }, [adventureMapWords, currentLevelIndex, gameMode, levels, selectedAdventureWorldIndex, words, usedWords]);
 
   // Handle when player fails a gate (3 wrong attempts) - called from modal button
   const handleGateFailed = useCallback(() => {
@@ -580,7 +648,7 @@ export default function App() {
     }
 
     // Reset the failed gate so re-entering starts from a fresh state.
-    if (activeEncounter?.type === 'gate') {
+    if (activeEncounter && activeEncounter.type !== 'boss') {
       const replacementWord = handleRequestNewWord(activeEncounter.word, []);
       setLevels(prevLevels => prevLevels.map((level, levelIndex) => {
         if (levelIndex !== currentLevelIndex) return level;
@@ -610,9 +678,12 @@ export default function App() {
     }));
 
     // Return to map immediately (player clicked the button)
-    setScreen(player.hp <= 0 ? 'gameover' : 'map');
+    setScreen('map');
+    if (player.hp <= 0) {
+      setDeathLevelName(levels[currentLevelIndex]?.name ?? null);
+    }
     setActiveEncounter(null);
-  }, [activeEncounter, currentLevelIndex, handleRequestNewWord, player.hp]);
+  }, [activeEncounter, currentLevelIndex, handleRequestNewWord, levels, player.hp]);
 
   const startAdventureMode = () => {
     setGameMode('adventure');
@@ -640,6 +711,7 @@ export default function App() {
   };
 
   const restartGame = () => {
+    setDeathLevelName(null);
     setPlayer(INITIAL_PLAYER);
     setCurrentLevelIndex(0);
     setCurrentEncounterIndex(0);
@@ -654,6 +726,19 @@ export default function App() {
       encounters: l.encounters.map(e => ({ ...e, completed: false })),
       boss: { ...l.boss, completed: false }
     })));
+  };
+
+  const returnToMapSelectAfterDeath = () => {
+    setDeathLevelName(null);
+    setActiveEncounter(null);
+    setPlayer(INITIAL_PLAYER);
+    setCurrentEncounterIndex(0);
+
+    if (gameMode === 'adventure') {
+      setSelectedAdventureWorldIndex(null);
+    }
+
+    setScreen('map');
   };
 
   const handleResetMap = (newWords?: Word[]) => {
@@ -887,6 +972,7 @@ export default function App() {
                   worlds={ADVENTURE_WORLDS}
                   levels={levels}
                   onSelectWorld={handleAdventureWorldSelect}
+                  onReplayWorld={handleAdventureWorldReplay}
                   language={language}
                 />
               ) : (
@@ -1180,6 +1266,7 @@ export default function App() {
         <AnimatePresence>
           {showSettings && (
             <motion.div
+              key="settings-modal"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -1249,6 +1336,7 @@ export default function App() {
 
           {showResetConfirm && (
             <motion.div
+              key={`reset-${showResetConfirm}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -1309,6 +1397,7 @@ export default function App() {
           {/* Congratulations Modal */}
           {showCongrats && (
             <motion.div
+              key="congrats-modal"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -1340,7 +1429,7 @@ export default function App() {
                     autoFocus
                     onClick={() => {
                       setShowCongrats(false);
-                      handleResetAll();
+                      setScreen('map');
                     }}
                     className="w-full py-4 rounded-xl font-black bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black uppercase tracking-widest transition-all"
                   >
@@ -1350,10 +1439,55 @@ export default function App() {
               </motion.div>
             </motion.div>
           )}
+
+          {deathLevelName && (
+            <motion.div
+              key={`death-${deathLevelName}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="w-full max-w-md space-y-6 rounded-[32px] border border-red-500/30 bg-[#16161D] p-8 text-center"
+              >
+                <div className="space-y-4">
+                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-500/15">
+                    <Skull className="h-10 w-10 text-red-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-3xl font-black text-white">{copy.gameover.title}</h3>
+                    <p className="mt-2 text-sm font-medium leading-relaxed text-gray-400">{copy.gameover.subtitle}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/5 bg-[#101018] p-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-500">
+                    {copy.gameover.levelReached}
+                  </p>
+                  <p className="mt-2 text-lg font-black text-white">
+                    {localizeSubmapName(deathLevelName, language) || copy.gameover.unknownLevel}
+                  </p>
+                </div>
+
+                <button
+                  autoFocus
+                  onClick={returnToMapSelectAfterDeath}
+                  className="w-full rounded-2xl bg-white py-4 font-black text-black transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  {copy.gameover.tryAgain}
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
           {/* Global Message Modal (Reusable) */}
           <AnimatePresence>
             {globalMessage && (
               <motion.div
+                key="global-message-modal"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}

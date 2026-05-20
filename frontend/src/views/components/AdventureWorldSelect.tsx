@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { BookOpen, CheckCircle2, Map as MapIcon, Route, Swords } from 'lucide-react';
+import { useState } from 'react';
 import { ADVENTURE_WORLDS } from '../../controllers/levelController';
 import { Level } from '../../models/types';
 import { cn } from '../../utils/gameUtils';
@@ -10,11 +11,15 @@ interface AdventureWorldSelectProps {
   worlds: typeof ADVENTURE_WORLDS;
   levels: Level[];
   onSelectWorld: (worldIndex: number) => void;
+  onReplayWorld?: (worldIndex: number) => void;
   language?: AppLanguage;
 }
 
-export default function AdventureWorldSelect({ worlds, levels, onSelectWorld, language = 'en' }: AdventureWorldSelectProps) {
+export default function AdventureWorldSelect({ worlds, levels, onSelectWorld, onReplayWorld, language = 'en' }: AdventureWorldSelectProps) {
   const copy = getCopy(language);
+  const [completedWorldIndex, setCompletedWorldIndex] = useState<number | null>(null);
+  const completedWorld = completedWorldIndex === null ? null : worlds[completedWorldIndex];
+
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-col gap-3 border-b border-[#2a2845] pb-5 md:flex-row md:items-end md:justify-between">
@@ -55,7 +60,13 @@ export default function AdventureWorldSelect({ worlds, levels, onSelectWorld, la
               type="button"
               whileHover={{ y: -3 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => onSelectWorld(worldIndex)}
+              onClick={() => {
+                if (isComplete && onReplayWorld) {
+                  setCompletedWorldIndex(worldIndex);
+                  return;
+                }
+                onSelectWorld(worldIndex);
+              }}
               className={cn(
                 'group relative overflow-hidden rounded-2xl border p-5 text-left transition-all',
                 themeStyle.card,
@@ -142,6 +153,56 @@ export default function AdventureWorldSelect({ worlds, levels, onSelectWorld, la
           );
         })}
       </div>
+
+      {completedWorld && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setCompletedWorldIndex(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 18, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 18, scale: 0.96 }}
+            onClick={event => event.stopPropagation()}
+            className="w-full max-w-md rounded-[28px] border border-emerald-400/25 bg-[#101018] p-6 text-center shadow-2xl"
+          >
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-300/25 bg-emerald-400/10 text-emerald-300">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <h3 className="mt-5 text-2xl font-black text-white">
+              {localizeWorldName(completedWorld.name, language)}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-[#94a3b8]">
+              {language === 'vi'
+                ? 'Vùng đất này đã hoàn thành. Bạn có muốn chơi lại từ đầu không? Tiến trình riêng của vùng này sẽ được reset, còn máu, giáp, xu và vật phẩm vẫn giữ nguyên.'
+                : 'This world is complete. Replay it from the beginning? Only this world resets; your HP, shield, coins, and items stay unchanged.'}
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setCompletedWorldIndex(null)}
+                className="h-11 flex-1 rounded-xl border border-white/10 bg-white/5 text-sm font-black text-white transition-all hover:bg-white/10"
+              >
+                {copy.common.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const replayIndex = completedWorldIndex;
+                  setCompletedWorldIndex(null);
+                  if (replayIndex !== null) onReplayWorld?.(replayIndex);
+                }}
+                className="h-11 flex-1 rounded-xl bg-emerald-400 text-sm font-black uppercase tracking-[0.08em] text-[#052e16] transition-all hover:bg-emerald-300"
+              >
+                {language === 'vi' ? 'Chơi lại' : 'Replay'}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }

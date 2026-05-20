@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, Shield, Zap, Volume2, Volume1, SkipForward, HelpCircle, Trophy, Swords, Skull, DoorClosed, Gift, Sparkles, X } from 'lucide-react';
 import { Word, PlayerState, Encounter, InventoryItem, ActiveCombatEffect, BossSkillConfig } from '../../models/types';
@@ -79,6 +79,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   const [skillMessage, setSkillMessage] = useState<{ skill: BossSkillConfig; key: number } | null>(null);
   const [showEntityInfo, setShowEntityInfo] = useState(false);
   const [entityInfoOpenedAt, setEntityInfoOpenedAt] = useState<number | null>(null);
+  const enterMustReleaseRef = useRef(false);
 
   // Check if all input fields are filled
   const isInputComplete = userInput.every(c => c !== '');
@@ -132,6 +133,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     setSkillMessage(null);
     setShowEntityInfo(false);
     setEntityInfoOpenedAt(null);
+    enterMustReleaseRef.current = false;
   }, [encounter.word.id]); // Reset when word ID changes (new encounter)
 
   useEffect(() => {
@@ -291,7 +293,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   }, [activeEffects, isEncounterCompleted, isLocked, onDamage, showEntityInfo]);
 
   const handleUseItemInternal = (itemType: InventoryItem['type']) => {
-    if (isEncounterCompleted || isLocked || isAttacking || isInputBlocked) return;
+    if (player.hp <= 0 || isEncounterCompleted || isLocked || isAttacking || isInputBlocked) return;
     if (areItemsLocked || ((itemType === 'shield' || itemType === 'armor_plate') && isShieldDisabled)) {
       setMessage({ text: areItemsLocked ? 'Items are locked!' : 'Shield is disabled!', type: 'error' });
       return;
@@ -349,7 +351,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   };
 
   const handleInputChange = (index: number, value: string) => {
-    if (isEncounterCompleted || isLocked || isAttacking || isInputBlocked) return;
+    if (player.hp <= 0 || isEncounterCompleted || isLocked || isAttacking || isInputBlocked) return;
     if (isSubmitted) setIsSubmitted(false);
 
     const newInput = [...userInput];
@@ -364,7 +366,21 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (isEncounterCompleted || isLocked || isAttacking || isInputBlocked) return;
+    if (e.key === 'Enter' && isEncounterCompleted) {
+      e.preventDefault();
+      if (e.repeat || enterMustReleaseRef.current) return;
+      onComplete(true, { damageDealt: CONFIG.SUCCESS_DAMAGE_DEALT_STAT, damageTaken: 0 });
+      return;
+    }
+
+    if (e.key === 'Enter' && isLocked) {
+      e.preventDefault();
+      if (e.repeat || enterMustReleaseRef.current) return;
+      onGateFailed();
+      return;
+    }
+
+    if (player.hp <= 0 || isEncounterCompleted || isLocked || isAttacking || isInputBlocked) return;
 
     if (e.key === 'Backspace') {
       if (!userInput[index] && index > 0) {
@@ -376,6 +392,9 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       }
     }
     if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!isInputComplete) return;
+      enterMustReleaseRef.current = true;
       if (isEncounterCompleted) {
         onComplete(true, { damageDealt: CONFIG.SUCCESS_DAMAGE_DEALT_STAT, damageTaken: 0 });
       } else {
@@ -389,11 +408,12 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
 
     // Mark current word as used (both in session and globally)
     const wordLower = currentWord.text.toLowerCase();
-    setSessionUsedWords(prev => [...prev, wordLower]);
+    const nextSessionUsedWords = [...new Set([...sessionUsedWords, wordLower])];
+    setSessionUsedWords(nextSessionUsedWords);
     onWordCompleted(currentWord.text);
 
     // Get a new word for the next round (passing session used words)
-    const newWord = onRequestNewWord(currentWord, sessionUsedWords);
+    const newWord = onRequestNewWord(currentWord, nextSessionUsedWords);
     setCurrentWord(newWord);
     setUserInput(new Array(newWord.text.length).fill(''));
     setRevealedIndices([]);
@@ -427,7 +447,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   }, [advanceEffectsForNewWord, currentWord, onWordCompleted, onRequestNewWord, sessionUsedWords]);
 
   const handleSubmit = async () => {
-    if (isAttacking || isLocked || isEncounterCompleted || isInputBlocked) return;
+    if (player.hp <= 0 || isAttacking || isLocked || isEncounterCompleted || isInputBlocked || !isInputComplete) return;
 
     setIsAttacking(true);
     setIsSubmitted(true);
@@ -501,6 +521,98 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       default: return copy.combat.titles.encounter;
     }
   };
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && !event.repeat) {
+        if (showEntityInfo || player.hp <= 0) return;
+
+        if (isEncounterCompleted) {
+          event.preventDefault();
+          if (enterMustReleaseRef.current) return;
+          onComplete(true, { damageDealt: CONFIG.SUCCESS_DAMAGE_DEALT_STAT, damageTaken: 0 });
+          return;
+        }
+
+        if (isLocked) {
+          event.preventDefault();
+          if (enterMustReleaseRef.current) return;
+          onGateFailed();
+          return;
+        }
+      }
+
+      const target = event.target as HTMLElement | null;
+      const isTypingTarget = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+      if (isTypingTarget || player.hp <= 0 || isEncounterCompleted || isLocked || isAttacking || isInputBlocked || showEntityInfo) return;
+
+      if (event.key === 'Enter') {
+        if (!isInputComplete) return;
+        event.preventDefault();
+        enterMustReleaseRef.current = true;
+        handleSubmit();
+        return;
+      }
+
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        setUserInput(prev => {
+          const lastFilledIndex = Math.max(0, prev.map(value => Boolean(value)).lastIndexOf(true));
+          const next = [...prev];
+          next[lastFilledIndex] = '';
+          window.setTimeout(() => {
+            document.getElementById(`input-${lastFilledIndex}`)?.focus();
+            setFocusedInputIndex(lastFilledIndex);
+          }, 0);
+          return next;
+        });
+        return;
+      }
+
+      if (/^[a-zA-Z]$/.test(event.key)) {
+        event.preventDefault();
+        setIsSubmitted(false);
+        setUserInput(prev => {
+          const firstEmptyIndex = prev.findIndex(value => value === '');
+          const targetIndex = firstEmptyIndex >= 0 ? firstEmptyIndex : Math.min(focusedInputIndex, currentWord.text.length - 1);
+          const next = [...prev];
+          next[targetIndex] = event.key.toLowerCase();
+          const nextFocusIndex = Math.min(targetIndex + 1, currentWord.text.length - 1);
+          window.setTimeout(() => {
+            document.getElementById(`input-${nextFocusIndex}`)?.focus();
+            setFocusedInputIndex(nextFocusIndex);
+          }, 0);
+          return next;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    const handleGlobalKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Enter') {
+        enterMustReleaseRef.current = false;
+      }
+    };
+
+    window.addEventListener('keyup', handleGlobalKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener('keyup', handleGlobalKeyUp);
+    };
+  }, [
+    currentWord.text.length,
+    focusedInputIndex,
+    handleSubmit,
+    isAttacking,
+    isEncounterCompleted,
+    isInputBlocked,
+    isInputComplete,
+    isLocked,
+    onComplete,
+    onGateFailed,
+    player.hp,
+    showEntityInfo
+  ]);
 
   const getEncounterIcon = (className?: string) => {
     switch (encounter.type) {
@@ -1004,7 +1116,6 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           {/* ZONE 6 - Action */}
           {isEncounterCompleted ? (
             <button
-              autoFocus
               onClick={() => onComplete(true, { damageDealt: CONFIG.SUCCESS_DAMAGE_DEALT_STAT, damageTaken: 0 })}
               className="w-full bg-green-500 text-white font-black py-4 rounded-2xl shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
@@ -1014,7 +1125,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           ) : (
             <button
               onClick={handleSubmit}
-              disabled={isEncounterCompleted || isLocked || isAttacking || isInputBlocked || !isInputComplete}
+              disabled={player.hp <= 0 || isEncounterCompleted || isLocked || isAttacking || isInputBlocked || !isInputComplete}
               className="h-12 w-full rounded-[11px] bg-[linear-gradient(135deg,#7C3AED,#5B21B6)] font-bold tracking-[0.1em] text-white shadow-2xl transition-all hover:bg-[linear-gradient(135deg,#8B5CF6,#7C3AED)] active:scale-[0.98] disabled:scale-100 disabled:opacity-30"
             >
               {copy.combat.attack}

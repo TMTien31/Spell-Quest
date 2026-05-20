@@ -391,20 +391,24 @@ export default function AdventureMap({
             <RotateCcw className="h-3 w-3" />
             {copy.map.resetMap}
           </button>
-          <button
-            onClick={() => onResetRequest('all')}
-            className="flex h-7 items-center gap-1.5 rounded-lg border border-[rgba(245,158,11,0.3)] bg-yellow-500/10 px-2.5 text-[9px] font-bold uppercase text-[#F59E0B] transition-all hover:bg-yellow-500/20"
-          >
-            <RotateCcw className="h-3 w-3" />
-            {copy.map.softReset}
-          </button>
-          <button
-            onClick={() => onResetRequest('hard')}
-            className="flex h-7 items-center gap-1.5 rounded-lg border border-[rgba(239,68,68,0.3)] bg-red-500/10 px-2.5 text-[9px] font-bold uppercase text-[#ef4444] transition-all hover:bg-red-500/20"
-          >
-            <Skull className="h-3 w-3" />
-            {copy.map.hardReset}
-          </button>
+          {!onBackToWorlds && (
+            <>
+              <button
+                onClick={() => onResetRequest('all')}
+                className="flex h-7 items-center gap-1.5 rounded-lg border border-[rgba(245,158,11,0.3)] bg-yellow-500/10 px-2.5 text-[9px] font-bold uppercase text-[#F59E0B] transition-all hover:bg-yellow-500/20"
+              >
+                <RotateCcw className="h-3 w-3" />
+                {copy.map.softReset}
+              </button>
+              <button
+                onClick={() => onResetRequest('hard')}
+                className="flex h-7 items-center gap-1.5 rounded-lg border border-[rgba(239,68,68,0.3)] bg-red-500/10 px-2.5 text-[9px] font-bold uppercase text-[#ef4444] transition-all hover:bg-red-500/20"
+              >
+                <Skull className="h-3 w-3" />
+                {copy.map.hardReset}
+              </button>
+            </>
+          )}
         </div>
       </div>
       {previewEncounter && (
