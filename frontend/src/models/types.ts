@@ -16,6 +16,57 @@ export interface InventoryItem {
   count: number;
 }
 
+export type LocalizedText = {
+  en: string;
+  vi: string;
+};
+
+export type EffectId =
+  | 'delay'
+  | 'poison'
+  | 'wound'
+  | 'shieldDisable'
+  | 'shieldBreak'
+  | 'streakBreak'
+  | 'coinDrain'
+  | 'coinBleed'
+  | 'hideDefinition'
+  | 'timerRush'
+  | 'itemLock';
+
+export interface EffectConfig {
+  id: EffectId;
+  durationMs?: number;
+  durationWords?: number;
+  damage?: number;
+  tickMs?: number;
+  damageBonus?: number;
+  amount?: number;
+  percent?: number;
+}
+
+export interface ActiveCombatEffect extends EffectConfig {
+  instanceId: string;
+  source: 'boss' | 'item';
+  sourceSkillId?: string;
+  sourceName?: LocalizedText;
+  appliedAt: number;
+  expiresAt?: number;
+  remainingWords?: number;
+}
+
+export type BossSkillTrigger =
+  | { type: 'onBossAttack'; every: number; offset?: number }
+  | { type: 'onWrong'; every: number };
+
+export interface BossSkillConfig {
+  id: string;
+  name: LocalizedText;
+  description: LocalizedText;
+  trigger: BossSkillTrigger;
+  effects: EffectConfig[];
+}
+
 export interface PlayerState {
   hp: number;
   maxHp: number;

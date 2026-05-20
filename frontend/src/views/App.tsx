@@ -44,9 +44,10 @@ import AdventureMap from './components/AdventureMap';
 import AdventureWorldSelect from './components/AdventureWorldSelect';
 import CombatView from './components/CombatView';
 import BestiaryView from './components/BestiaryView';
+import EffectGuideView from './components/EffectGuideView';
 import { getCopy, localizeSubmapName, localizeWorldName, type AppLanguage } from '../i18n';
 
-type GameScreen = 'landing' | 'login' | 'signup' | 'mode_select' | 'map' | 'bestiary' | 'combat' | 'spin' | 'words' | 'shop' | 'gameover';
+type GameScreen = 'landing' | 'login' | 'signup' | 'mode_select' | 'map' | 'bestiary' | 'effects' | 'combat' | 'spin' | 'words' | 'shop' | 'gameover';
 type GameMode = 'sandbox' | 'adventure';
 
 const INITIAL_PLAYER: PlayerState = createInitialPlayer();
@@ -843,12 +844,13 @@ export default function App() {
       {!['landing', 'login', 'signup', 'mode_select'].includes(screen) && (
       <main className="max-w-5xl mx-auto px-4 py-6">
         {/* Screen Navigation (Only for non-combat/spin screens) */}
-        {['map', 'bestiary', 'words', 'shop'].includes(screen) && (
+        {['map', 'bestiary', 'effects', 'words', 'shop'].includes(screen) && (
           <nav className="mb-6 overflow-x-auto pb-1 sm:mb-8">
             <div className="mx-auto flex w-max gap-1 rounded-2xl border border-white/5 bg-[#16161D] p-1">
               {[
                 { id: 'map', icon: MapIcon, label: copy.nav.adventure },
                 { id: 'bestiary', icon: Skull, label: copy.nav.bestiary },
+                { id: 'effects', icon: Zap, label: language === 'vi' ? 'Hiệu ứng' : 'Effects' },
                 { id: 'shop', icon: ShoppingBag, label: copy.nav.shop },
                 ...(gameMode === 'sandbox' || selectedAdventureWorldIndex !== null
                   ? [{ id: 'words', icon: BookOpen, label: copy.nav.library }]
@@ -914,6 +916,17 @@ export default function App() {
             </motion.div>
           )}
 
+          {screen === 'effects' && (
+            <motion.div
+              key="effects"
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -18 }}
+            >
+              <EffectGuideView language={language} />
+            </motion.div>
+          )}
+
           {screen === 'combat' && activeEncounter && (
             <motion.div
               key="combat"
@@ -927,6 +940,7 @@ export default function App() {
                 onComplete={handleCombatComplete}
                 onUseItem={handleUseItem}
                 onDamage={handleCombatDamage}
+                onPlayerUpdate={setPlayer}
                 onWordCompleted={handleWordCompleted}
                 onRequestNewWord={handleRequestNewWord}
                 onGateFailed={handleGateFailed}

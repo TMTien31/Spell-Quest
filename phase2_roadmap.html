@@ -1,0 +1,293 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);font-size:13px}
+.wrap{padding:1rem 0}
+
+.context{background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 14px;margin-bottom:1.5rem;border:0.5px solid var(--color-border-tertiary)}
+.ctx-title{font-weight:500;font-size:13px;color:var(--color-text-primary);margin-bottom:6px}
+.ctx-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ctx-item{font-size:12px;color:var(--color-text-secondary);padding:4px 8px;background:var(--color-background-primary);border-radius:3px;border:0.5px solid var(--color-border-tertiary)}
+.ctx-item b{color:var(--color-text-primary);font-weight:500}
+
+.task-block{margin-bottom:1.2rem;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden}
+.tb-head{padding:9px 14px;display:flex;align-items:center;gap:10px}
+.tb-num{font-size:11px;font-weight:500;padding:2px 8px;border-radius:3px;color:#fff;flex-shrink:0}
+.tb-title{font-weight:500;font-size:13px;color:var(--color-text-primary);flex:1}
+.tb-size{font-size:11px;color:var(--color-text-tertiary)}
+.tb-body{padding:10px 14px;border-top:0.5px solid var(--color-border-tertiary)}
+
+.spec-label{font-size:10px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.spec-list{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.spec-item{font-size:12px;color:var(--color-text-secondary);padding:3px 8px;background:var(--color-background-secondary);border-radius:3px;line-height:1.5}
+.spec-item b{color:var(--color-text-primary);font-weight:500}
+
+pre{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:9px 12px;font-size:11px;line-height:1.7;overflow-x:auto;color:var(--color-text-primary);font-family:var(--font-mono);margin-bottom:8px}
+
+.dep{font-size:11px;color:var(--color-text-tertiary);padding:5px 8px;border-radius:3px;border-left:2px solid var(--color-border-secondary);background:var(--color-background-secondary);margin-top:6px}
+.dep b{color:var(--color-text-secondary);font-weight:500}
+
+.tag{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;font-weight:500;margin-right:3px}
+.tg-logic{background:#E6F1FB;color:#185FA5}
+.tg-data{background:#EEEDFE;color:#534AB7}
+.tg-ui{background:#FAEEDA;color:#854F0B}
+.tg-config{background:#EAF3DE;color:#3B6D11}
+
+.n1{background:#185FA5}.n2{background:#534AB7}.n3{background:#854F0B}.n4{background:#993556}.n5{background:#3B6D11}
+.h1{background:#E6F1FB}.h2{background:#EEEDFE}.h3{background:#FAEEDA}.h4{background:#FBEAF0}.h5{background:#EAF3DE}
+
+.order{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);margin-bottom:1.5rem}
+.o-step{font-size:11.5px;padding:4px 10px;border-radius:var(--border-radius-md);background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);color:var(--color-text-primary)}
+.o-arr{color:var(--color-text-tertiary);font-size:12px}
+</style>
+
+<div class="wrap">
+
+<div class="context">
+  <div class="ctx-title">Context từ codebase hiện tại</div>
+  <div class="ctx-grid">
+    <div class="ctx-item"><b>PlayerState</b> có: hp, shield, coins, streak, inventory — chưa có mana, activeEffects</div>
+    <div class="ctx-item"><b>Boss timer</b> đã có: 10s, -10HP khi hết. Chưa có boss skill system</div>
+    <div class="ctx-item"><b>Combat loop</b> trong App.tsx: onCorrect → +shield +streak, onWrong → -hp/-streak</div>
+    <div class="ctx-item"><b>Config</b> đọc từ game-config.json qua config.ts — cần thêm section "effects" và "bossSkills"</div>
+    <div class="ctx-item"><b>Types</b> trong types.ts — cần thêm Effect, BossSkill, ActiveEffect interfaces</div>
+    <div class="ctx-item"><b>gameUtils.ts</b> — chỗ tốt nhất để thêm effect engine functions</div>
+  </div>
+</div>
+
+<div class="order">
+  <span style="font-size:11px;color:var(--color-text-tertiary);font-weight:500;margin-right:4px">Thứ tự:</span>
+  <span class="o-step">2.1 Types + Config</span><span class="o-arr">→</span>
+  <span class="o-step">2.2 Effect Engine</span><span class="o-arr">→</span>
+  <span class="o-step">2.3 Boss Skill Schema</span><span class="o-arr">→</span>
+  <span class="o-step">2.4 Phase 2 Trigger</span><span class="o-arr">→</span>
+  <span class="o-step">2.5 Effect HUD</span>
+</div>
+
+<!-- TASK 2.1 -->
+<div class="task-block">
+  <div class="tb-head h1"><span class="tb-num n1">2.1</span><span class="tb-title">Types + Config Schema</span><span class="tb-size">Foundation — làm đầu tiên</span></div>
+  <div class="tb-body">
+    <div class="spec-label">Thêm vào types.ts</div>
+<pre>// Effect types
+export type EffectId =
+  | 'delay'        // gõ sai → chờ Xs trước khi gõ lại
+  | 'poison'       // mất HP theo tick
+  | 'wound'        // dame nhận tăng thêm sau mỗi hit
+  | 'streakBreak'  // xóa streak về 0
+  | 'manaDrain'    // trừ mana (placeholder cho Phase 3)
+  | 'shieldBreak'  // xóa toàn bộ shield
+  | 'healBlock'    // chặn mọi nguồn hồi HP
+
+export type EffectTarget = 'player' | 'boss'
+export type EffectTrigger = 'onWrong' | 'onHit' | 'onTick' | 'onEncounterStart' | 'immediate'
+
+export interface ActiveEffect {
+  id: EffectId
+  remainingDuration: number   // số từ còn lại (hoặc giây nếu tick-based)
+  params: Record&lt;string, number&gt;  // { damage: 8, interval: 4 } v.v.
+  source: 'boss' | 'item'
+}
+
+// Boss skill types
+export interface BossSkill {
+  id: string
+  name: string
+  triggerAtHit: number        // tung skill sau N lần boss hit thành công
+  effectId: EffectId
+  params: Record&lt;string, number&gt;
+  durationWords: number       // effect kéo dài bao nhiêu từ (0 = instant)
+  phase: 1 | 2 | 'both'
+}
+
+export interface BossConfig {
+  entityId: string
+  phase2Threshold: number     // % HP kích hoạt phase 2 (mặc định 0.5)
+  phase2Passive: {            // passive boss nhận khi vào phase 2
+    type: 'regen' | 'lifesteal' | 'timerRush'
+    value: number
+  } | null
+  phase2PlayerDebuff: {       // debuff player nhận khi boss vào phase 2
+    effectId: EffectId
+    params: Record&lt;string, number&gt;
+    durationWords: number
+  } | null
+  skills: BossSkill[]
+}
+
+// Thêm vào PlayerState hiện tại:
+// activeEffects: ActiveEffect[]  ← array này chứa tất cả effect đang chạy</pre>
+
+    <div class="spec-label">Thêm vào game-config.json</div>
+<pre>"effects": {
+  "delay": { "defaultDuration": 2000 },
+  "poison": { "defaultDamage": 8, "defaultInterval": 4000 },
+  "wound": { "defaultDamageBonus": 5, "maxStacks": 3 },
+  "streakBreak": {},
+  "manaDrain": { "defaultAmount": 2 },
+  "shieldBreak": {},
+  "healBlock": { "defaultDurationWords": 5 }
+}</pre>
+    <div class="dep"><b>Dependency:</b> Task này phải xong trước tất cả task còn lại. Không có types thì không viết được gì.</div>
+  </div>
+</div>
+
+<!-- TASK 2.2 -->
+<div class="task-block">
+  <div class="tb-head h2"><span class="tb-num n2">2.2</span><span class="tb-title">Effect Engine — core logic</span><span class="tb-size">Phức tạp nhất, quan trọng nhất</span></div>
+  <div class="tb-body">
+    <div class="spec-label">Tạo src/utils/effectEngine.ts (file mới)</div>
+<pre>// 3 function chính:
+
+// 1. Apply effect vào state
+applyEffect(
+  effect: { effectId: EffectId, params, durationWords },
+  playerState: PlayerState,
+  source: 'boss' | 'item'
+): PlayerState
+
+// 2. Tick effects sau mỗi từ (giảm duration, xóa effect hết hạn, apply tick damage)
+tickEffects(
+  playerState: PlayerState,
+  event: 'onCorrect' | 'onWrong' | 'onNewWord'
+): PlayerState
+
+// 3. Check instant effects (delay, streakBreak) — trả về có nên block input không
+checkInstantEffect(
+  effectId: EffectId,
+  playerState: PlayerState
+): { shouldBlock: boolean, blockDurationMs: number }</pre>
+
+    <div class="spec-label">Logic từng effect</div>
+    <div class="spec-list">
+      <div class="spec-item"><b>delay:</b> Khi gõ sai → set flag <code>inputBlockedUntil = Date.now() + params.duration</code>. CombatView check flag này trước khi cho phép gõ.</div>
+      <div class="spec-item"><b>poison:</b> Mỗi N giây (interval từ params) → trừ params.damage HP. Dùng useEffect + setInterval trong CombatView, đọc activeEffects để biết có poison không.</div>
+      <div class="spec-item"><b>wound:</b> Khi player nhận damage → damage × (1 + stacks × 0.2). Stack tăng mỗi lần bị hit khi wound active. Max stacks từ config.</div>
+      <div class="spec-item"><b>streakBreak:</b> Instant — set streak về 0 ngay khi apply.</div>
+      <div class="spec-item"><b>shieldBreak:</b> Instant — set shield về 0 ngay khi apply.</div>
+      <div class="spec-item"><b>healBlock:</b> Flag trong PlayerState. Mọi logic +HP check flag này trước khi apply.</div>
+      <div class="spec-item"><b>manaDrain:</b> Placeholder — trừ mana (mana = 0 hiện tại, Phase 3 mới có ý nghĩa). Log warning nhưng không crash.</div>
+    </div>
+
+    <div class="spec-label">Tích hợp vào App.tsx / CombatView.tsx</div>
+    <div class="spec-list">
+      <div class="spec-item">Thêm <code>activeEffects: []</code> vào PlayerState khởi tạo</div>
+      <div class="spec-item">Trong <code>handleCorrectAnswer</code>: gọi <code>tickEffects(state, 'onCorrect')</code> trước khi +shield +streak</div>
+      <div class="spec-item">Trong <code>handleWrongAnswer</code>: gọi <code>tickEffects(state, 'onWrong')</code>, sau đó check delay effect</div>
+      <div class="spec-item">Khi encounter kết thúc: xóa toàn bộ activeEffects (effects không carry sang encounter tiếp)</div>
+    </div>
+    <div class="dep"><b>Dependency:</b> Cần 2.1 xong trước.</div>
+  </div>
+</div>
+
+<!-- TASK 2.3 -->
+<div class="task-block">
+  <div class="tb-head h3"><span class="tb-num n3">2.3</span><span class="tb-title">Boss Skill Schema + Data</span><span class="tb-size">Data file — không cần code mới nhiều</span></div>
+  <div class="tb-body">
+    <div class="spec-label">Tạo src/data/bossConfigs.ts (file mới)</div>
+<pre>// Dùng BossConfig interface từ 2.1
+// Bắt đầu với 3 boss hiện có, sau thêm dần
+
+export const bossConfigs: Record&lt;string, BossConfig&gt; = {
+
+  // Boss map 1 — Sylvanus (Verdant Wilds)
+  sylvanus: {
+    entityId: 'sylvanus',
+    phase2Threshold: 0.5,
+    phase2Passive: { type: 'regen', value: 5 },        // boss tự hồi 5 HP mỗi từ
+    phase2PlayerDebuff: {
+      effectId: 'wound',
+      params: { damageBonus: 8 },
+      durationWords: 999                                // cả phần còn lại
+    },
+    skills: [
+      { id: 'root_grasp',  name: 'Root Grasp',  triggerAtHit: 2, effectId: 'wound',       params: { damageBonus: 5 }, durationWords: 3, phase: 'both' },
+      { id: 'spore_cloud', name: 'Spore Cloud', triggerAtHit: 4, effectId: 'poison',      params: { damage: 8, interval: 4000 }, durationWords: 5, phase: 'both' },
+    ]
+  },
+
+  // Boss map 2 — Lexicon (Drowned Archives)
+  lexicon: {
+    entityId: 'lexicon',
+    phase2Threshold: 0.5,
+    phase2Passive: null,
+    phase2PlayerDebuff: {
+      effectId: 'manaDrain',
+      params: { amount: 1 },
+      durationWords: 999
+    },
+    skills: [
+      { id: 'ink_flood',  name: 'Ink Flood',  triggerAtHit: 2, effectId: 'poison',      params: { damage: 6, interval: 4000 }, durationWords: 4, phase: 'both' },
+      { id: 'shush',      name: 'Shush',      triggerAtHit: 4, effectId: 'streakBreak', params: {}, durationWords: 0, phase: 'both' },
+    ]
+  },
+
+  // Boss map 3 — Pyraxis (Ashen Badlands)
+  pyraxis: {
+    entityId: 'pyraxis',
+    phase2Threshold: 0.5,
+    phase2Passive: { type: 'timerRush', value: 0.3 },  // timer nhanh hơn 30%
+    phase2PlayerDebuff: {
+      effectId: 'healBlock',
+      params: {},
+      durationWords: 999
+    },
+    skills: [
+      { id: 'flame_whip',  name: 'Flame Whip',  triggerAtHit: 2, effectId: 'wound',  params: { damageBonus: 5 }, durationWords: 3, phase: 'both' },
+      { id: 'ember_shower',name: 'Ember Shower',triggerAtHit: 3, effectId: 'poison', params: { damage: 10, interval: 4000 }, durationWords: 4, phase: 'both' },
+      { id: 'inferno',     name: 'Inferno',     triggerAtHit: 6, effectId: 'healBlock', params: {}, durationWords: 5, phase: 2 },
+    ]
+  }
+}</pre>
+
+    <div class="spec-label">Tích hợp boss skill vào combat loop</div>
+    <div class="spec-list">
+      <div class="spec-item">Thêm <code>bossHitCounter: number</code> vào combat state (reset mỗi encounter)</div>
+      <div class="spec-item">Sau mỗi lần boss timer hết và boss tấn công: <code>bossHitCounter++</code> → check xem có skill nào <code>triggerAtHit === bossHitCounter</code> không → nếu có, <code>applyEffect(skill)</code> lên player</div>
+      <div class="spec-item">Hiển thị skill name ngắn khi trigger: toast "⚡ Root Grasp!" trong 1.5s</div>
+    </div>
+    <div class="dep"><b>Dependency:</b> Cần 2.1 + 2.2 xong trước.</div>
+  </div>
+</div>
+
+<!-- TASK 2.4 -->
+<div class="task-block">
+  <div class="tb-head h4"><span class="tb-num n4">2.4</span><span class="tb-title">Phase 2 Trigger</span><span class="tb-size">Nhỏ — hook vào boss HP check</span></div>
+  <div class="tb-body">
+    <div class="spec-label">Logic cần thêm vào combat loop</div>
+    <div class="spec-list">
+      <div class="spec-item">Thêm <code>isPhase2: boolean</code> vào combat state, khởi tạo <code>false</code></div>
+      <div class="spec-item">Sau mỗi lần boss nhận hit: check <code>bossHpPercent &lt;= bossConfig.phase2Threshold</code></div>
+      <div class="spec-item">Nếu vừa chuyển sang phase 2 (<code>!isPhase2 &amp;&amp; shouldBePhase2</code>): set <code>isPhase2 = true</code></div>
+      <div class="spec-item">Apply <code>phase2Passive</code> — nếu là regen: thêm vào combat loop mỗi từ đúng boss nhận <code>+regen.value</code> HP lại</div>
+      <div class="spec-item">Apply <code>phase2PlayerDebuff</code> lên player qua <code>applyEffect()</code></div>
+      <div class="spec-item">Hiện visual indicator: border boss zone đổi từ đỏ thường → đỏ sáng hơn, thêm text "PHASE 2" nhỏ</div>
+    </div>
+    <div class="dep"><b>Dependency:</b> Cần 2.2 + 2.3 xong trước.</div>
+  </div>
+</div>
+
+<!-- TASK 2.5 -->
+<div class="task-block">
+  <div class="tb-head h5"><span class="tb-num n5">2.5</span><span class="tb-title">Effect HUD — hiển thị active effects</span><span class="tb-size">UI thuần — làm cuối</span></div>
+  <div class="tb-body">
+    <div class="spec-label">Status row trong Combat HUD</div>
+    <div class="spec-list">
+      <div class="spec-item">Row mỏng ngay dưới HP/Shield/Streak bar. Ẩn khi không có effect nào.</div>
+      <div class="spec-item">Mỗi effect active hiện 1 badge nhỏ: icon + tên + duration còn lại</div>
+      <div class="spec-item"><b>Debuff</b> (boss gây ra): viền đỏ, text đỏ nhạt — Poison "☠ 5s", Wound "⚔ ×3", Delay "⏳ 2s"</div>
+      <div class="spec-item"><b>Buff</b> (item tốt sau này): viền xanh, text xanh nhạt</div>
+      <div class="spec-item">Khi effect mới được apply: badge slide-in từ bên phải (Framer Motion)</div>
+      <div class="spec-item">Khi effect hết: badge fade-out</div>
+    </div>
+<pre>// Ví dụ hiển thị
+activeEffects = [
+  { id: 'poison',  remainingDuration: 3, params: { damage: 8 } },
+  { id: 'wound',   remainingDuration: 2, params: { damageBonus: 5 } }
+]
+// → hiện: [☠ Poison 3] [⚔ Wound 2]</pre>
+    <div class="dep"><b>Dependency:</b> Cần 2.2 xong. Có thể làm song song với 2.3–2.4 vì chỉ là UI display.</div>
+  </div>
+</div>
+
+</div>

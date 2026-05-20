@@ -1,12 +1,33 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Shield, Zap, Volume2, Volume1, SkipForward, HelpCircle, Trophy, Swords, Skull, DoorClosed, Gift } from 'lucide-react';
-import { Word, PlayerState, Encounter, InventoryItem } from '../../models/types';
+import { Heart, Shield, Zap, Volume2, Volume1, SkipForward, HelpCircle, Trophy, Swords, Skull, DoorClosed, Gift, Sparkles, X } from 'lucide-react';
+import { Word, PlayerState, Encounter, InventoryItem, ActiveCombatEffect, BossSkillConfig } from '../../models/types';
 import { cn, speak, countSyllables, levenshteinDistance, fetchWordInfo } from '../../utils/gameUtils';
 import { CONFIG } from '../../config/config';
 import { EntityDisplay } from '../../components/EntityDisplay';
 import { entityRegistry, type EntityConfig } from '../../assets/entities/entityRegistry';
 import { ADVENTURE_WORLDS } from '../../controllers/levelController';
+import {
+  describeSkillEffectDetails,
+  describeSkillEffects,
+  describeSkillTrigger,
+  getBossSkills,
+  localizeSkillDescription,
+  localizeSkillName
+} from '../../data/bossSkills';
+import { getEffectDefinition, getEffectName } from '../../data/effects';
+import {
+  advanceWordEffects,
+  applyImmediateEffectToPlayer,
+  applyWrongAttemptEffectsToPlayer,
+  createActiveEffect,
+  getBossDamageWithEffects,
+  getTimerRushMultiplier,
+  hasActiveEffect,
+  isImmediateEffect,
+  isPersistentEffect,
+  pruneExpiredEffects
+} from '../../utils/effectEngine';
 import {
   getCopy,
   getInventoryDescription,
@@ -22,13 +43,14 @@ interface CombatViewProps {
   onComplete: (success: boolean, stats: { damageDealt: number; damageTaken: number }) => void;
   onUseItem: (itemType: InventoryItem['type']) => void;
   onDamage: (damage: number, bypassShield?: boolean) => void;
+  onPlayerUpdate: (updater: (player: PlayerState) => PlayerState) => void;
   onWordCompleted: (wordText: string) => void; // Callback when a word is successfully spelled (adds to used words)
   onRequestNewWord: (currentWord: Word, sessionUsedWords: string[]) => Word; // Callback to get a new word for the same encounter
   onGateFailed: () => void; // Callback when player fails 3 times
   language?: AppLanguage;
 }
 
-export default function CombatView({ encounter, player, onComplete, onUseItem, onDamage, onWordCompleted, onRequestNewWord, onGateFailed, language = 'en' }: CombatViewProps) {
+export default function CombatView({ encounter, player, onComplete, onUseItem, onDamage, onPlayerUpdate, onWordCompleted, onRequestNewWord, onGateFailed, language = 'en' }: CombatViewProps) {
   const copy = getCopy(language);
   const [userInput, setUserInput] = useState<string[]>(new Array(encounter.word.text.length).fill(''));
   const [attempts, setAttempts] = useState(0);
@@ -50,9 +72,43 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   const [isAttacking, setIsAttacking] = useState(false); // Prevent button spam during transition
   const [sessionUsedWords, setSessionUsedWords] = useState<string[]>([]); // Track words used in this session to avoid repeats
   const [focusedInputIndex, setFocusedInputIndex] = useState(0);
+  const [activeEffects, setActiveEffects] = useState<ActiveCombatEffect[]>([]);
+  const [bossHitCounter, setBossHitCounter] = useState(0);
+  const [inputBlockedUntil, setInputBlockedUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const [skillMessage, setSkillMessage] = useState<{ skill: BossSkillConfig; key: number } | null>(null);
+  const [showEntityInfo, setShowEntityInfo] = useState(false);
+  const [entityInfoOpenedAt, setEntityInfoOpenedAt] = useState<number | null>(null);
 
   // Check if all input fields are filled
   const isInputComplete = userInput.every(c => c !== '');
+  const bossSkills = useMemo(() => getBossSkills(encounter.entityId), [encounter.entityId]);
+  const isInputBlocked = now < inputBlockedUntil;
+  const isShieldDisabled = hasActiveEffect(activeEffects, 'shieldDisable', now);
+  const areItemsLocked = hasActiveEffect(activeEffects, 'itemLock', now);
+  const isDefinitionHidden = hasActiveEffect(activeEffects, 'hideDefinition', now);
+
+  const openEntityInfo = () => {
+    setNow(Date.now());
+    setEntityInfoOpenedAt(Date.now());
+    setShowEntityInfo(true);
+  };
+
+  const closeEntityInfo = () => {
+    const currentTime = Date.now();
+    const pausedFor = entityInfoOpenedAt ? currentTime - entityInfoOpenedAt : 0;
+
+    if (pausedFor > 0) {
+      setActiveEffects(prev => prev.map(effect => (
+        effect.expiresAt ? { ...effect, expiresAt: effect.expiresAt + pausedFor } : effect
+      )));
+      setInputBlockedUntil(prev => prev > currentTime ? prev + pausedFor : prev);
+    }
+
+    setNow(Date.now());
+    setEntityInfoOpenedAt(null);
+    setShowEntityInfo(false);
+  };
 
   // Reset state when encounter changes
   useEffect(() => {
@@ -70,7 +126,39 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     setMessage(null);
     setSessionUsedWords([]); // Reset session words for new encounter
     setFocusedInputIndex(0);
+    setActiveEffects([]);
+    setBossHitCounter(0);
+    setInputBlockedUntil(0);
+    setSkillMessage(null);
+    setShowEntityInfo(false);
+    setEntityInfoOpenedAt(null);
   }, [encounter.word.id]); // Reset when word ID changes (new encounter)
+
+  useEffect(() => {
+    if (inputBlockedUntil <= Date.now()) return;
+    const timeout = window.setTimeout(() => setNow(Date.now()), Math.max(0, inputBlockedUntil - Date.now()));
+    return () => window.clearTimeout(timeout);
+  }, [inputBlockedUntil]);
+
+  useEffect(() => {
+    if (!skillMessage) return;
+    const timeout = window.setTimeout(() => setSkillMessage(null), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [skillMessage]);
+
+  useEffect(() => {
+    if (showEntityInfo) return;
+    const interval = window.setInterval(() => {
+      const nextNow = Date.now();
+      setNow(nextNow);
+      setActiveEffects(prev => {
+        const next = pruneExpiredEffects(prev, nextNow);
+        return next.length === prev.length ? prev : next;
+      });
+    }, 500);
+
+    return () => window.clearInterval(interval);
+  }, [showEntityInfo]);
 
   useEffect(() => {
     const focusTimer = window.setTimeout(() => {
@@ -118,29 +206,96 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     return () => clearTimeout(timer);
   }, [currentWord.text]);
 
+  const advanceEffectsForNewWord = useCallback(() => {
+    setActiveEffects(prev => advanceWordEffects(prev));
+  }, []);
+
+  const applyBossSkill = useCallback((skill: BossSkillConfig) => {
+    const currentTime = Date.now();
+    const persistentEffects = skill.effects
+      .filter(isPersistentEffect)
+      .map(effect => createActiveEffect(effect, skill, currentTime));
+
+    if (persistentEffects.length > 0) {
+      setActiveEffects(prev => pruneExpiredEffects([...prev, ...persistentEffects], currentTime));
+    }
+
+    skill.effects.forEach(effect => {
+      if (isImmediateEffect(effect)) {
+        onPlayerUpdate(prev => applyImmediateEffectToPlayer(prev, effect));
+      }
+
+      if (effect.id === 'delay') {
+        setInputBlockedUntil(Math.max(inputBlockedUntil, currentTime + (effect.durationMs ?? 1000)));
+      }
+
+      if (effect.id === 'shieldBreak') {
+        setIsShielded(false);
+      }
+    });
+
+    setSkillMessage({ skill, key: currentTime });
+    setMessage({
+      text: `${localizeSkillName(skill, language)} - ${describeSkillEffects(skill, language)}`,
+      type: 'error'
+    });
+  }, [inputBlockedUntil, language, onPlayerUpdate]);
+
+  const triggerBossAttackSkills = useCallback((hitCount: number) => {
+    bossSkills
+      .filter(skill => {
+        if (skill.trigger.type !== 'onBossAttack') return false;
+        const offset = skill.trigger.offset ?? 0;
+        return hitCount >= offset + skill.trigger.every && (hitCount - offset) % skill.trigger.every === 0;
+      })
+      .forEach(applyBossSkill);
+  }, [applyBossSkill, bossSkills]);
+
   // Boss Timer Logic
   useEffect(() => {
-    if (encounter.type !== 'boss' || isEncounterCompleted || player.hp <= 0) return;
+    if (showEntityInfo || encounter.type !== 'boss' || isEncounterCompleted || player.hp <= 0) return;
 
     const interval = setInterval(() => {
-      setTimer(prev => Math.max(0, prev - CONFIG.BOSS_TIMER_TICK_STEP));
+      setTimer(prev => Math.max(0, prev - CONFIG.BOSS_TIMER_TICK_STEP * getTimerRushMultiplier(activeEffects)));
     }, CONFIG.BOSS_TIMER_TICK_MS);
 
     return () => clearInterval(interval);
-  }, [encounter.type, isEncounterCompleted, player.hp]);
+  }, [activeEffects, encounter.type, isEncounterCompleted, player.hp, showEntityInfo]);
 
   useEffect(() => {
+    if (showEntityInfo) return;
     if (encounter.type === 'boss' && timer <= 0 && !isEncounterCompleted && player.hp > 0) {
       // Boss attacks!
       setBossAttacking(true);
-      onDamage(CONFIG.BOSS_DAMAGE);
+      const damage = getBossDamageWithEffects(CONFIG.BOSS_DAMAGE, activeEffects);
+      onDamage(damage, isShieldDisabled);
+      setBossHitCounter(prev => {
+        const next = prev + 1;
+        triggerBossAttackSkills(next);
+        return next;
+      });
       setTimeout(() => setBossAttacking(false), CONFIG.BOSS_ATTACK_FLASH_MS);
       setTimer(CONFIG.BOSS_TIMER_SECONDS); // Reset timer
     }
-  }, [timer, encounter.type, isEncounterCompleted, player.hp, onDamage]);
+  }, [activeEffects, encounter.type, isEncounterCompleted, isShieldDisabled, onDamage, player.hp, showEntityInfo, timer, triggerBossAttackSkills]);
+
+  useEffect(() => {
+    const poisonEffects = activeEffects.filter(effect => effect.id === 'poison');
+    if (showEntityInfo || poisonEffects.length === 0 || isEncounterCompleted || isLocked) return;
+
+    const intervals = poisonEffects.map(effect => window.setInterval(() => {
+      onDamage(effect.damage ?? 0, true);
+    }, effect.tickMs ?? 3000));
+
+    return () => intervals.forEach(interval => window.clearInterval(interval));
+  }, [activeEffects, isEncounterCompleted, isLocked, onDamage, showEntityInfo]);
 
   const handleUseItemInternal = (itemType: InventoryItem['type']) => {
-    if (isEncounterCompleted || isLocked || isAttacking) return;
+    if (isEncounterCompleted || isLocked || isAttacking || isInputBlocked) return;
+    if (areItemsLocked || ((itemType === 'shield' || itemType === 'armor_plate') && isShieldDisabled)) {
+      setMessage({ text: areItemsLocked ? 'Items are locked!' : 'Shield is disabled!', type: 'error' });
+      return;
+    }
 
     switch (itemType) {
       case 'hint': {
@@ -194,7 +349,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   };
 
   const handleInputChange = (index: number, value: string) => {
-    if (isEncounterCompleted || isLocked || isAttacking) return;
+    if (isEncounterCompleted || isLocked || isAttacking || isInputBlocked) return;
     if (isSubmitted) setIsSubmitted(false);
 
     const newInput = [...userInput];
@@ -209,7 +364,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (isEncounterCompleted || isLocked || isAttacking) return;
+    if (isEncounterCompleted || isLocked || isAttacking || isInputBlocked) return;
 
     if (e.key === 'Backspace') {
       if (!userInput[index] && index > 0) {
@@ -245,6 +400,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     setIsSubmitted(false);
     setMessage(null);
     setIsAttacking(false);
+    advanceEffectsForNewWord();
 
     // Load dictionary info for new word
     const loadInfo = async () => {
@@ -268,10 +424,10 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       setDictionaryInfo(info);
     };
     loadInfo();
-  }, [currentWord, onWordCompleted, onRequestNewWord, sessionUsedWords]);
+  }, [advanceEffectsForNewWord, currentWord, onWordCompleted, onRequestNewWord, sessionUsedWords]);
 
   const handleSubmit = async () => {
-    if (isAttacking || isLocked || isEncounterCompleted) return;
+    if (isAttacking || isLocked || isEncounterCompleted || isInputBlocked) return;
 
     setIsAttacking(true);
     setIsSubmitted(true);
@@ -290,6 +446,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
         // All hits completed - encounter is defeated
         setIsEncounterCompleted(true);
         setHitsRemaining(0);
+        setActiveEffects([]);
         setMessage({ text: copy.combat.messages.enemyDefeated, type: 'success' });
         speak(targetWord);
         // Mark word as used since encounter is complete
@@ -308,6 +465,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     } else {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
+      onPlayerUpdate(prev => applyWrongAttemptEffectsToPlayer(prev, activeEffects));
       setShake(true);
       setMissFlashKey(prev => prev + 1);
       setTimeout(() => setShake(false), 500);
@@ -320,7 +478,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
         const damageTaken = CONFIG.DEDUCTED_HP_ON_LOSS;
         setIsLocked(true);
         setMessage({ text: copy.combat.messages.gateLocked, type: 'error' });
-        onDamage(damageTaken, true);
+        onDamage(getBossDamageWithEffects(damageTaken, activeEffects), true);
         setIsAttacking(false);
       } else {
         if (distance <= CONFIG.CLOSE_MATCH_DISTANCE) {
@@ -354,7 +512,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     }
   };
 
-  const hasStatusEffects = isShielded || (player.streak ?? 0) > 0 || attempts > 0 || (encounter.type === 'boss' && !isEncounterCompleted);
+  const hasStatusEffects = activeEffects.length > 0 || isInputBlocked || isShielded || (player.streak ?? 0) > 0 || attempts > 0 || (encounter.type === 'boss' && !isEncounterCompleted);
   const isSubmittedWordCorrect = userInput.join('').toLowerCase() === currentWord.text.toLowerCase();
   const entityConfig = entityRegistry[encounter.entityId] ?? entityRegistry.fallback;
   const encounterWorld = ADVENTURE_WORLDS.find(world => world.name === encounter.worldName);
@@ -457,6 +615,43 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                   {copy.combat.timer} {Math.ceil(timer)}s
                 </span>
               )}
+              {isInputBlocked && (
+                <motion.span
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="inline-flex items-center gap-1 rounded-full border border-yellow-300/25 bg-yellow-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-yellow-200"
+                >
+                  <span className="h-[5px] w-[5px] rounded-full bg-yellow-200" />
+                  {getEffectName('delay', language)} {Math.ceil((inputBlockedUntil - now) / 1000)}s
+                </motion.span>
+              )}
+              {activeEffects.map(effect => {
+                const definition = getEffectDefinition(effect.id);
+                const remaining = typeof effect.remainingWords === 'number'
+                  ? `${effect.remainingWords}w`
+                  : effect.expiresAt
+                    ? `${Math.max(1, Math.ceil((effect.expiresAt - now) / 1000))}s`
+                    : '';
+                return (
+                  <motion.span
+                    key={effect.instanceId}
+                    initial={{ opacity: 0, x: 8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -8 }}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                      definition.tone === 'economy'
+                        ? "border-yellow-300/25 bg-yellow-400/15 text-yellow-200"
+                        : definition.tone === 'knowledge'
+                          ? "border-blue-300/25 bg-blue-400/15 text-blue-200"
+                          : "border-red-300/25 bg-red-500/15 text-red-200"
+                    )}
+                  >
+                    <span className="h-[5px] w-[5px] rounded-full bg-current" />
+                    {definition.name[language]} {remaining}
+                  </motion.span>
+                );
+              })}
             </div>
           </motion.div>
         )}
@@ -465,7 +660,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       {/* ZONE 3 - Enemy */}
       <div
         className={cn(
-          "relative z-10 mx-[10px] mt-2 overflow-hidden rounded-2xl border p-4 shadow-xl",
+          "relative z-10 mx-[10px] mt-2 overflow-visible rounded-2xl border p-4 shadow-xl",
           roleStyle.card
         )}
       >
@@ -498,7 +693,15 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           </div>
         </div>
         <div className="relative z-10 mt-4 flex justify-center">
-          <div className={cn("flex items-center justify-center rounded-2xl border bg-[#0f0e1a]/78 p-3 shadow-inner", roleStyle.avatar)}>
+          <button
+            type="button"
+            onClick={openEntityInfo}
+            className={cn(
+              "flex items-center justify-center rounded-2xl border bg-[#0f0e1a]/78 p-3 shadow-inner transition-all hover:scale-[1.02] hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-red-300/30",
+              roleStyle.avatar
+            )}
+            aria-label={language === 'vi' ? 'Xem thông tin quái' : 'View enemy info'}
+          >
             <EntityDisplay
               entityId={encounter.entityId}
               size={entityConfig.bossTier === 'final' ? 'xl' : entityConfig.role === 'boss' ? 'xl' : 'lg'}
@@ -508,13 +711,25 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                 isEncounterCompleted && 'opacity-45 grayscale'
               )}
             />
-          </div>
+          </button>
         </div>
         <div className="relative z-10 mt-2 text-center">
           <div className="text-base font-black text-white">{localizeEntityName(entityConfig, language)}</div>
           <p className="mx-auto mt-1 max-w-2xl text-xs font-medium leading-relaxed text-[#b6c2d5]">
             {localizeEntityDescription(entityConfig, language)}
           </p>
+          {bossSkills.length > 0 && (
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {bossSkills.map(skill => (
+                <span
+                  key={skill.id}
+                  className="rounded-full border border-red-300/25 bg-red-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-red-100"
+                >
+                  {localizeSkillName(skill, language)}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="relative z-10 mt-4 space-y-2">
           <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
@@ -568,13 +783,17 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                   <span className="text-sm italic text-[#8da2c3]">{dictionaryInfo.phonetic}</span>
                 )}
               </div>
-              <p className="text-xl font-black leading-tight text-[#f8fafc] sm:text-2xl">{dictionaryInfo.vietnamese}</p>
+              <p className="text-xl font-black leading-tight text-[#f8fafc] sm:text-2xl">
+                {isDefinitionHidden ? '???' : dictionaryInfo.vietnamese}
+              </p>
               {dictionaryInfo.vietnameseMeaning && (
-                <p className="mt-2 text-sm font-medium leading-relaxed text-[#b6c2d5]">{dictionaryInfo.vietnameseMeaning}</p>
+                <p className="mt-2 text-sm font-medium leading-relaxed text-[#b6c2d5]">
+                  {isDefinitionHidden ? '???' : dictionaryInfo.vietnameseMeaning}
+                </p>
               )}
               {dictionaryInfo.meaning && (
                 <p className="mt-3 rounded-xl border border-white/5 bg-black/15 p-3 text-sm leading-relaxed text-[#7f91ad]">
-                  "{dictionaryInfo.meaning.replace(new RegExp(currentWord.text, 'gi'), '___')}"
+                  "{isDefinitionHidden ? '???' : dictionaryInfo.meaning.replace(new RegExp(currentWord.text, 'gi'), '___')}"
                 </p>
               )}
             </div>
@@ -641,7 +860,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                         onChange={(e) => handleInputChange(idx, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(idx, e)}
                         onFocus={() => setFocusedInputIndex(idx)}
-                        disabled={isEncounterCompleted || isLocked || isAttacking}
+                        disabled={isEncounterCompleted || isLocked || isAttacking || isInputBlocked}
                         className={cn(
                           "h-14 min-h-14 w-12 min-w-12 rounded-xl border-2 text-center text-xl font-black uppercase text-white caret-[#fef08a] outline-none transition-all duration-200 sm:h-14 sm:w-14",
                           showFeedback && isSubmittedWordCorrect && isCorrectChar
@@ -655,7 +874,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                         )}
                         autoComplete="off"
                       />
-                      {isFocused && !userInput[idx] && !isEncounterCompleted && !isLocked && !isAttacking && (
+                      {isFocused && !userInput[idx] && !isEncounterCompleted && !isLocked && !isAttacking && !isInputBlocked && (
                         <span className="pointer-events-none absolute left-1/2 top-1/2 h-7 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#fef08a] input-caret-pulse" />
                       )}
                     </div>
@@ -673,7 +892,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
                 onClick={() => item.count > 0 && handleUseItemInternal(item.type)}
                 onMouseEnter={() => setHoveredItem(item.type)}
                 onMouseLeave={() => setHoveredItem(null)}
-                disabled={item.count === 0}
+                disabled={item.count === 0 || areItemsLocked || ((item.type === 'shield' || item.type === 'armor_plate') && isShieldDisabled)}
                 className={cn(
                   "group inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#3d3b5e] bg-[#121124] px-3 py-2 text-left text-[10px] font-black uppercase text-slate-200 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#7C3AED] hover:bg-[#1f1b3a] hover:text-white disabled:translate-y-0 disabled:opacity-35 disabled:grayscale",
                   item.type === 'shield' && isShielded && "border-green-400/70 bg-green-500/10 shadow-[0_0_16px_rgba(16,185,129,0.2)]"
@@ -749,6 +968,22 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           </AnimatePresence>
 
           <AnimatePresence mode="wait">
+            {skillMessage && (
+              <motion.div
+                key={skillMessage.key}
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="rounded-xl border border-red-300/25 bg-red-500/12 px-3 py-2 text-center shadow-[0_0_18px_rgba(239,68,68,0.12)]"
+              >
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-red-200">
+                  {localizeSkillName(skillMessage.skill, language)}
+                </p>
+                <p className="mt-1 text-[10px] font-bold uppercase text-red-300/80">
+                  {describeSkillEffects(skillMessage.skill, language)}
+                </p>
+              </motion.div>
+            )}
             {message && !isEncounterCompleted && (
               <motion.p
                 key={message.text}
@@ -779,7 +1014,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
           ) : (
             <button
               onClick={handleSubmit}
-              disabled={isEncounterCompleted || isLocked || isAttacking || !isInputComplete}
+              disabled={isEncounterCompleted || isLocked || isAttacking || isInputBlocked || !isInputComplete}
               className="h-12 w-full rounded-[11px] bg-[linear-gradient(135deg,#7C3AED,#5B21B6)] font-bold tracking-[0.1em] text-white shadow-2xl transition-all hover:bg-[linear-gradient(135deg,#8B5CF6,#7C3AED)] active:scale-[0.98] disabled:scale-100 disabled:opacity-30"
             >
               {copy.combat.attack}
@@ -808,6 +1043,17 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
             </motion.div>
           )}
       </div>
+
+      <AnimatePresence>
+        {showEntityInfo && (
+          <CombatEntityInfoModal
+            entity={entityConfig}
+            skills={bossSkills}
+            language={language}
+            onClose={closeEntityInfo}
+          />
+        )}
+      </AnimatePresence>
 
       <style>{`
         @keyframes success-flash {
@@ -883,6 +1129,110 @@ function getEntityRoleStyle(entity: EntityConfig) {
     hp: 'bg-[linear-gradient(90deg,#b91c1c,#f97316)]',
     segment: 'bg-orange-400'
   };
+}
+
+function CombatEntityInfoModal({
+  entity,
+  skills,
+  language,
+  onClose
+}: {
+  entity: EntityConfig;
+  skills: BossSkillConfig[];
+  language: AppLanguage;
+  onClose: () => void;
+}) {
+  const roleLabel = entity.role === 'boss'
+    ? entity.bossTier === 'final'
+      ? language === 'vi' ? 'Trùm Cuối' : 'Final Boss'
+      : language === 'vi' ? 'Á Trùm' : 'Miniboss'
+    : language === 'vi' ? 'Sinh vật' : 'Creature';
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 18, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 18, scale: 0.96 }}
+        onClick={event => event.stopPropagation()}
+        className="max-h-[86vh] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-[#2a2845] bg-[#101018] p-5 shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[#2a2845] pb-4">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-[#3d3b5e] bg-[#0f0e1a]">
+              <EntityDisplay entityId={entity.id} size="lg" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#64748b]">{roleLabel}</p>
+              <h3 className="mt-1 text-xl font-black leading-tight text-white">{localizeEntityName(entity, language)}</h3>
+              <p className="mt-2 text-xs leading-relaxed text-[#94a3b8]">{localizeEntityDescription(entity, language)}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[#94a3b8] transition-all hover:bg-white/10 hover:text-white"
+            aria-label={language === 'vi' ? 'Đóng' : 'Close'}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-red-200">
+            {language === 'vi' ? 'Kỹ năng' : 'Skills'}
+          </p>
+          {skills.length > 0 ? skills.map(skill => (
+            <div key={skill.id} className="rounded-2xl border border-red-300/20 bg-red-500/10 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-black uppercase text-white">{localizeSkillName(skill, language)}</h4>
+                  <p className="mt-1 text-xs font-medium leading-relaxed text-[#cbd5e1]">
+                    {localizeSkillDescription(skill, language)}
+                  </p>
+                </div>
+                <span className="rounded-full border border-red-300/20 bg-black/20 px-2 py-1 text-[9px] font-black uppercase text-red-200">
+                  {describeSkillEffects(skill, language)}
+                </span>
+              </div>
+              <div className="mt-3 rounded-xl border border-red-300/15 bg-black/15 p-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-red-200">
+                  {language === 'vi' ? 'Điều kiện kích hoạt' : 'Trigger'}
+                </p>
+                <p className="mt-1 text-[10px] font-medium leading-relaxed text-[#cbd5e1]">
+                  {describeSkillTrigger(skill, language)}
+                </p>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {describeSkillEffectDetails(skill, language).map((detail, index) => {
+                  const effect = skill.effects[index];
+                  return (
+                    <div key={`${skill.id}-${effect.id}-${index}`} className="rounded-xl bg-black/15 p-2">
+                      <p className="flex items-center gap-1.5 text-[10px] font-black uppercase text-white">
+                        <Sparkles className="h-3 w-3 text-red-200" />
+                        {getEffectDefinition(effect.id).name[language]}
+                      </p>
+                      <p className="mt-1 text-[10px] font-medium leading-relaxed text-[#94a3b8]">{detail}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )) : (
+            <p className="rounded-xl border border-[#2a2845] bg-white/[0.03] p-3 text-xs font-bold text-[#94a3b8]">
+              {language === 'vi' ? 'Không có kỹ năng đặc biệt.' : 'No special skill.'}
+            </p>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
 }
 
 function getCombatThemeStyle(theme: string) {

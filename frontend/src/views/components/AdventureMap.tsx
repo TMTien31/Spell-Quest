@@ -1,9 +1,28 @@
 import { motion } from 'motion/react';
-import { ArrowLeft, RotateCcw, Skull } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, RotateCcw, Skull, Sparkles, Swords, X } from 'lucide-react';
 import { Level, Encounter } from '../../models/types';
 import { cn } from '../../utils/gameUtils';
 import { EntityDisplay } from '../../components/EntityDisplay';
-import { getCopy, localizeSubmapName, localizeWorldDescription, localizeWorldName, type AppLanguage } from '../../i18n';
+import {
+  getCopy,
+  localizeEntityDescription,
+  localizeEntityName,
+  localizeSubmapName,
+  localizeWorldDescription,
+  localizeWorldName,
+  type AppLanguage
+} from '../../i18n';
+import {
+  describeSkillEffectDetails,
+  describeSkillEffects,
+  describeSkillTrigger,
+  getBossSkills,
+  localizeSkillDescription,
+  localizeSkillName
+} from '../../data/bossSkills';
+import { getEffectDefinition } from '../../data/effects';
+import { entityRegistry } from '../../assets/entities/entityRegistry';
 
 interface AdventureMapProps {
   levels: Level[];
@@ -30,6 +49,7 @@ export default function AdventureMap({
 }: AdventureMapProps) {
   const copy = getCopy(language);
   const currentLevel = levels[currentLevelIndex] || levels[0];
+  const [previewEncounter, setPreviewEncounter] = useState<Encounter | null>(null);
 
   if (!currentLevel) {
     return (
@@ -242,7 +262,7 @@ export default function AdventureMap({
                   key={encounter.id}
                   whileHover={isCurrent ? { scale: 1.06 } : {}}
                   whileTap={isCurrent ? { scale: 0.96 } : {}}
-                  onClick={() => isCurrent && onSelectEncounter(encounter)}
+                  onClick={() => isCurrent && setPreviewEncounter(encounter)}
                   className={cn(isCurrent ? "cursor-pointer" : "cursor-not-allowed")}
                   style={{ transformOrigin: `${point.x}px ${point.y}px` }}
                 >
@@ -298,7 +318,7 @@ export default function AdventureMap({
                 <motion.g
                   whileHover={isCurrent ? { scale: 1.06 } : {}}
                   whileTap={isCurrent ? { scale: 0.96 } : {}}
-                  onClick={() => isCurrent && onSelectEncounter(currentLevel.boss)}
+                  onClick={() => isCurrent && setPreviewEncounter(currentLevel.boss)}
                   className={cn(isCurrent ? "cursor-pointer" : "cursor-not-allowed")}
                   style={{
                     filter: isLocked ? undefined : `drop-shadow(0 0 10px ${isCompleted ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.38)'})`,
@@ -387,7 +407,134 @@ export default function AdventureMap({
           </button>
         </div>
       </div>
+      {previewEncounter && (
+        <EncounterPreviewModal
+          encounter={previewEncounter}
+          language={language}
+          onClose={() => setPreviewEncounter(null)}
+          onStart={() => {
+            const selected = previewEncounter;
+            setPreviewEncounter(null);
+            onSelectEncounter(selected);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function EncounterPreviewModal({
+  encounter,
+  language,
+  onClose,
+  onStart
+}: {
+  encounter: Encounter;
+  language: AppLanguage;
+  onClose: () => void;
+  onStart: () => void;
+}) {
+  const entity = entityRegistry[encounter.entityId] ?? entityRegistry.fallback;
+  const skills = getBossSkills(encounter.entityId);
+  const isBoss = entity.role === 'boss';
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 18, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 18, scale: 0.96 }}
+        onClick={event => event.stopPropagation()}
+        className="w-full max-w-2xl rounded-[28px] border border-[#2a2845] bg-[#101018] p-5 shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[#2a2845] pb-4">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className={cn(
+              "flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border bg-[#0f0e1a]",
+              isBoss ? "border-red-300/25" : "border-[#3d3b5e]"
+            )}>
+              <EntityDisplay entityId={encounter.entityId} size="lg" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#64748b]">
+                {isBoss ? (entity.bossTier === 'final' ? 'Final Boss' : 'Miniboss') : encounter.type}
+              </p>
+              <h3 className="mt-1 text-xl font-black leading-tight text-white">{localizeEntityName(entity, language)}</h3>
+              <p className="mt-2 text-xs leading-relaxed text-[#94a3b8]">{localizeEntityDescription(entity, language)}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[#94a3b8] transition-all hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-red-200">
+            {language === 'vi' ? 'Kỹ năng' : 'Skills'}
+          </p>
+          {skills.length > 0 ? skills.map(skill => (
+            <div key={skill.id} className="rounded-2xl border border-red-300/20 bg-red-500/10 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-black uppercase text-white">{localizeSkillName(skill, language)}</h4>
+                  <p className="mt-1 text-xs font-medium leading-relaxed text-[#cbd5e1]">
+                    {localizeSkillDescription(skill, language)}
+                  </p>
+                </div>
+                <span className="rounded-full border border-red-300/20 bg-black/20 px-2 py-1 text-[9px] font-black uppercase text-red-200">
+                  {describeSkillEffects(skill, language)}
+                </span>
+              </div>
+              <div className="mt-3 rounded-xl border border-red-300/15 bg-black/15 p-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-red-200">
+                  {language === 'vi' ? 'Điều kiện kích hoạt' : 'Trigger'}
+                </p>
+                <p className="mt-1 text-[10px] font-medium leading-relaxed text-[#cbd5e1]">
+                  {describeSkillTrigger(skill, language)}
+                </p>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {describeSkillEffectDetails(skill, language).map((detail, index) => {
+                  const effect = skill.effects[index];
+                  return (
+                    <div key={`${skill.id}-${effect.id}-${index}`} className="rounded-xl bg-black/15 p-2">
+                      <p className="flex items-center gap-1.5 text-[10px] font-black uppercase text-white">
+                        <Sparkles className="h-3 w-3 text-red-200" />
+                        {getEffectDefinition(effect.id).name[language]}
+                      </p>
+                      <p className="mt-1 text-[10px] font-medium leading-relaxed text-[#94a3b8]">{detail}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )) : (
+            <p className="rounded-xl border border-[#2a2845] bg-white/[0.03] p-3 text-xs font-bold text-[#94a3b8]">
+              {language === 'vi' ? 'Không có kỹ năng đặc biệt.' : 'No special skill.'}
+            </p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onStart}
+          className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#7C3AED,#5B21B6)] text-sm font-black uppercase tracking-[0.12em] text-white shadow-2xl transition-all hover:bg-[linear-gradient(135deg,#8B5CF6,#7C3AED)] active:scale-[0.98]"
+        >
+          <Swords className="h-4 w-4" />
+          {language === 'vi' ? 'Bắt đầu chiến đấu' : 'Start Battle'}
+        </button>
+      </motion.div>
+    </motion.div>
   );
 }
 
