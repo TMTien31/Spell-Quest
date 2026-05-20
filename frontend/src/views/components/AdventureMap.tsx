@@ -101,6 +101,7 @@ export default function AdventureMap({
     return `${path} C ${midX} ${prev.y}, ${midX} ${point.y}, ${point.x} ${point.y}`;
   }, '');
   const progressRatio = Math.min(Math.max(currentEncounterIndex / Math.max(currentLevel.encounters.length, 1), 0), 1);
+  const progressPoint = nodePoints[Math.min(currentEncounterIndex, nodePoints.length - 1)] ?? nodePoints[0];
 
   return (
     <div className={cn("relative mx-auto max-w-3xl overflow-hidden rounded-[28px] px-4 py-6 shadow-2xl shadow-black/25", themeStyle.shell)}>
@@ -162,10 +163,10 @@ export default function AdventureMap({
                   key={level.id}
                   title={displayName}
                   className={cn(
-                    "min-w-0 rounded-xl border px-3 py-2 text-left transition-all duration-500",
+                    "relative min-w-0 overflow-hidden rounded-xl border px-3 py-2 text-left transition-all duration-500",
                     isCurrentSubmap ? themeStyle.stepCurrent :
                     isCompletedSubmap ? "border-emerald-400/30 bg-emerald-400/10" :
-                    "border-[#2a2845] bg-black/10 opacity-70"
+                    "border-[#2a2845] bg-black/20 opacity-60"
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -177,6 +178,12 @@ export default function AdventureMap({
                     )} />
                     <span className="truncate text-[10px] font-black uppercase text-[#cbd5e1]">{displayName}</span>
                   </div>
+                  {isCurrentSubmap && (
+                    <span
+                      className="absolute inset-x-3 bottom-0 h-0.5 rounded-full opacity-90"
+                      style={{ backgroundColor: themeStyle.pathActive }}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -199,6 +206,30 @@ export default function AdventureMap({
               transition={{ duration: 0.7, ease: 'easeOut' }}
               style={{ filter: `drop-shadow(0 0 8px ${themeStyle.pathGlow})` }}
             />
+            <motion.path
+              d={pathD}
+              fill="none"
+              stroke="rgba(255,255,255,0.7)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              pathLength="1"
+              initial={{ strokeDasharray: '0 1' }}
+              animate={{ strokeDasharray: `${progressRatio} 1` }}
+              transition={{ duration: 0.9, ease: 'easeOut' }}
+              opacity="0.55"
+            />
+            {progressPoint && (
+              <motion.circle
+                cx={progressPoint.x}
+                cy={progressPoint.y}
+                r="5"
+                fill={themeStyle.pathActive}
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: [0.8, 1.18, 0.9], opacity: [0.7, 1, 0.85] }}
+                transition={{ duration: 0.9, ease: 'easeOut' }}
+                style={{ filter: `drop-shadow(0 0 10px ${themeStyle.pathGlow})`, transformOrigin: `${progressPoint.x}px ${progressPoint.y}px` }}
+              />
+            )}
 
             {currentLevel.encounters.map((encounter, i) => {
               const point = nodePoints[i];
@@ -229,12 +260,12 @@ export default function AdventureMap({
                     cx={point.x}
                     cy={point.y}
                     r={isCurrent ? 25 : isCompleted ? 22 : 18}
-                    fill={isCurrent ? themeStyle.nodeFill : isCompleted ? "rgba(34,197,94,0.15)" : isLocked ? "rgba(0,0,0,0.42)" : "#1e1c35"}
-                    stroke={isCurrent ? themeStyle.pathActive : isCompleted ? "#22C55E" : themeStyle.pathBase}
+                    fill={isCurrent ? themeStyle.nodeFill : isCompleted ? "rgba(34,197,94,0.15)" : isLocked ? "rgba(0,0,0,0.62)" : "#1e1c35"}
+                    stroke={isCurrent ? themeStyle.pathActive : isCompleted ? "#22C55E" : isLocked ? "rgba(148,163,184,0.16)" : themeStyle.pathBase}
                     strokeWidth={isCurrent || isCompleted ? 2 : 1.5}
-                    opacity={isLocked ? 0.65 : 1}
+                    opacity={isLocked ? 0.48 : 1}
                   />
-                  <foreignObject x={point.x - 24} y={point.y - 24} width="48" height="48" opacity={isLocked ? 0.74 : 1}>
+                  <foreignObject x={point.x - 24} y={point.y - 24} width="48" height="48" opacity={isLocked ? 0.48 : 1}>
                     <div className="flex h-12 w-12 items-center justify-center">
                       <EntityDisplay
                         entityId={encounter.entityId}
@@ -243,7 +274,7 @@ export default function AdventureMap({
                         className={cn(
                           'pointer-events-none',
                           isCompleted && 'opacity-60 grayscale',
-                          isLocked && 'brightness-0 saturate-0 opacity-80 drop-shadow-[0_0_7px_rgba(255,255,255,0.12)]'
+                          isLocked && 'brightness-0 saturate-0 opacity-70'
                         )}
                       />
                     </div>
@@ -269,7 +300,10 @@ export default function AdventureMap({
                   whileTap={isCurrent ? { scale: 0.96 } : {}}
                   onClick={() => isCurrent && onSelectEncounter(currentLevel.boss)}
                   className={cn(isCurrent ? "cursor-pointer" : "cursor-not-allowed")}
-                  style={{ filter: `drop-shadow(0 0 10px ${isCompleted ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.38)'})`, transformOrigin: `${point.x}px ${point.y}px` }}
+                  style={{
+                    filter: isLocked ? undefined : `drop-shadow(0 0 10px ${isCompleted ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.38)'})`,
+                    transformOrigin: `${point.x}px ${point.y}px`
+                  }}
                 >
                   {isCurrent && (
                     <>
@@ -280,20 +314,20 @@ export default function AdventureMap({
                       </text>
                     </>
                   )}
-                  <rect x={point.x - 23} y={point.y - 54} width="46" height="17" rx="8" fill="#7f1d1d" opacity={isLocked ? 0.55 : 1} stroke="rgba(252,165,165,0.35)" />
-                  <text x={point.x} y={point.y - 42} textAnchor="middle" className="fill-[#fca5a5] text-[9px] font-bold uppercase" opacity={isLocked ? 0.68 : 1}>
+                  <rect x={point.x - 23} y={point.y - 54} width="46" height="17" rx="8" fill={isLocked ? "#111827" : "#7f1d1d"} opacity={isLocked ? 0.48 : 1} stroke={isLocked ? "rgba(148,163,184,0.16)" : "rgba(252,165,165,0.35)"} />
+                  <text x={point.x} y={point.y - 42} textAnchor="middle" className="fill-[#fca5a5] text-[9px] font-bold uppercase" opacity={isLocked ? 0.42 : 1}>
                     {copy.map.boss}
                   </text>
                   <circle
                     cx={point.x}
                     cy={point.y}
                     r={isCompleted ? 24 : 30}
-                    fill={isCompleted ? "rgba(34,197,94,0.15)" : isLocked ? "rgba(0,0,0,0.42)" : "rgba(127,29,29,0.28)"}
-                    stroke={isCompleted ? "#22C55E" : "#ef4444"}
+                    fill={isCompleted ? "rgba(34,197,94,0.15)" : isLocked ? "rgba(0,0,0,0.62)" : "rgba(127,29,29,0.28)"}
+                    stroke={isCompleted ? "#22C55E" : isLocked ? "rgba(148,163,184,0.16)" : "#ef4444"}
                     strokeWidth="2"
-                    opacity={isLocked ? 0.72 : 1}
+                    opacity={isLocked ? 0.48 : 1}
                   />
-                  <foreignObject x={point.x - 27} y={point.y - 27} width="54" height="54" opacity={isLocked ? 0.76 : 1}>
+                  <foreignObject x={point.x - 27} y={point.y - 27} width="54" height="54" opacity={isLocked ? 0.48 : 1}>
                     <div className="flex h-12 w-12 items-center justify-center">
                       <EntityDisplay
                         entityId={currentLevel.boss.entityId}
@@ -302,7 +336,7 @@ export default function AdventureMap({
                         className={cn(
                           'pointer-events-none',
                           isCompleted && 'opacity-60 grayscale',
-                          isLocked && 'brightness-0 saturate-0 opacity-85 drop-shadow-[0_0_8px_rgba(255,255,255,0.16)]'
+                          isLocked && 'brightness-0 saturate-0 opacity-70'
                         )}
                       />
                     </div>

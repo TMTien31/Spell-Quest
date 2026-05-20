@@ -34,6 +34,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
   const [attempts, setAttempts] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [shake, setShake] = useState(false);
+  const [missFlashKey, setMissFlashKey] = useState(0);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [revealedIndices, setRevealedIndices] = useState<number[]>([]);
   const [isShielded, setIsShielded] = useState(false);
@@ -64,6 +65,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
     setUserInput(new Array(encounter.word.text.length).fill(''));
     setAttempts(0);
     setIsSubmitted(false);
+    setMissFlashKey(0);
     setRevealedIndices([]);
     setMessage(null);
     setSessionUsedWords([]); // Reset session words for new encounter
@@ -307,6 +309,7 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
       setShake(true);
+      setMissFlashKey(prev => prev + 1);
       setTimeout(() => setShake(false), 500);
 
       const distance = levenshteinDistance(typedWord, targetWord);
@@ -378,38 +381,41 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
       {message?.type === 'success' && (
         <div key={message.text} className="success-flash pointer-events-none fixed inset-0 z-50 bg-[rgba(34,197,94,0.08)]" />
       )}
+      {missFlashKey > 0 && (
+        <div key={missFlashKey} className="miss-flash pointer-events-none fixed inset-0 z-50 bg-[rgba(239,68,68,0.12)]" />
+      )}
 
       {/* ZONE 1 - HUD */}
-      <div className="relative z-10 bg-[#1a1830]/88 px-[10px] py-3 backdrop-blur">
+      <div className="relative z-10 bg-[#1a1830]/88 px-[10px] py-3.5 backdrop-blur">
         <div className="grid grid-cols-3 gap-2">
           <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase text-slate-500">{copy.combat.hp}</div>
-            <div className="text-[10px] font-bold text-[#ef4444]">{player.hp ?? 0}</div>
-            <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[#2a2845]">
+            <div className="text-[10px] font-black uppercase text-slate-400">{copy.combat.hp}</div>
+            <div className="text-[11px] font-black text-[#ef4444]">{player.hp ?? 0}</div>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#2a2845]">
               <motion.div
-                className="h-full rounded-[3px] bg-[#ef4444]"
+                className="h-full rounded-full bg-[#ef4444]"
                 animate={{ width: `${((player.hp ?? 0) / (player.maxHp || 1)) * 100}%` }}
               />
             </div>
           </div>
 
           <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase text-slate-500">{copy.combat.shield}</div>
-            <div className="text-[10px] font-bold text-[#3b82f6]">{player.shield ?? 0}</div>
-            <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[#2a2845]">
+            <div className="text-[10px] font-black uppercase text-slate-400">{copy.combat.shield}</div>
+            <div className="text-[11px] font-black text-[#3b82f6]">{player.shield ?? 0}</div>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#2a2845]">
               <motion.div
-                className="h-full rounded-[3px] bg-[#3b82f6]"
+                className="h-full rounded-full bg-[#3b82f6]"
                 animate={{ width: `${((player.shield ?? 0) / (player.maxShield || 1)) * 100}%` }}
               />
             </div>
           </div>
 
           <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase text-slate-500">{copy.combat.streak}</div>
-            <div className="text-[10px] font-bold text-[#F59E0B]">x{player.streak ?? 0}</div>
-            <div className="mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[#2a2845]">
+            <div className="text-[10px] font-black uppercase text-slate-400">{copy.combat.streak}</div>
+            <div className="text-[11px] font-black text-[#F59E0B]">x{player.streak ?? 0}</div>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#2a2845]">
               <motion.div
-                className="h-full rounded-[3px] bg-[#F59E0B]"
+                className="h-full rounded-full bg-[#F59E0B]"
                 animate={{ width: `${(Math.min(player.streak ?? 0, 10) / 10) * 100}%` }}
               />
             </div>
@@ -811,6 +817,14 @@ export default function CombatView({ encounter, player, onComplete, onUseItem, o
         }
         .success-flash {
           animation: success-flash 300ms ease-out forwards;
+        }
+        @keyframes miss-flash {
+          0% { opacity: 0; }
+          16% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        .miss-flash {
+          animation: miss-flash 360ms ease-out forwards;
         }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
